@@ -3,12 +3,13 @@ module.exports = {
         {
             name: 'qq-backend',
             script: './backend/server.js',
+            exec_mode: 'cluster',       // ← THIS IS THE FIX
+            instances: 'max',           // ← uses all CPU cores
             env_production: {
                 NODE_ENV: 'production',
                 PORT: 5001,
             },
             watch: false,
-            instances: 1,
             autorestart: true,
         },
         {
@@ -19,7 +20,7 @@ module.exports = {
                 NODE_ENV: 'production',
             },
             watch: false,
-            instances: 1,
+            instances: 1,              // frontend only needs 1 instance
             autorestart: true,
         },
     ],
