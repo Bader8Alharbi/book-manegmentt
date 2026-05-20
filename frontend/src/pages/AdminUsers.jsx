@@ -26,48 +26,50 @@ const AdminUsers = () => {
     }
   };
 
-  if (loading) return <div className="p-6">Loading...</div>;
+  if (loading) return <div className="min-h-screen bg-slate-950 text-slate-400 flex items-center justify-center">Loading...</div>;
 
   return (
-    <div className="max-w-5xl mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-6">Manage Users</h1>
-      <div className="bg-white shadow rounded overflow-x-auto">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="bg-gray-100 text-left">
-              <th className="p-3 border">Name</th>
-              <th className="p-3 border">Email</th>
-              <th className="p-3 border">Role</th>
-              <th className="p-3 border">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map(u => (
-              <tr key={u._id} className="hover:bg-gray-50">
-                <td className="p-3 border">{u.name}</td>
-                <td className="p-3 border">{u.email}</td>
-                <td className="p-3 border">
-                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                    u.role === 'admin' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
-                  }`}>
-                    {u.role}
-                  </span>
-                </td>
-                <td className="p-3 border">
-                  {u.role !== 'admin' && (
-                    <button
-                      onClick={() => handleDelete(u._id)}
-                      className="bg-red-600 text-white px-3 py-1 rounded text-sm"
-                    >
-                      Delete
-                    </button>
-                  )}
-                </td>
+    <div className="min-h-screen bg-slate-950 px-6 py-10">
+      <div className="max-w-5xl mx-auto">
+        <h1 className="text-4xl font-bold text-white mb-8">Manage Users</h1>
+        <div className="bg-slate-800 border border-slate-700 rounded-2xl overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-slate-700 text-slate-400 text-sm">
+                <th className="text-left px-5 py-4">Name</th>
+                <th className="text-left px-5 py-4">Email</th>
+                <th className="text-left px-5 py-4">Role</th>
+                <th className="text-left px-5 py-4">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        {users.length === 0 && <p className="p-4 text-gray-500">No users found.</p>}
+            </thead>
+            <tbody>
+              {users.map(u => (
+                <tr key={u._id} className="border-b border-slate-700 hover:bg-slate-700/40 transition">
+                  <td className="px-5 py-4 text-white">{u.name}</td>
+                  <td className="px-5 py-4 text-slate-300">{u.email}</td>
+                  <td className="px-5 py-4">
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                      u.role === 'admin' ? 'bg-indigo-900 text-indigo-400' : 'bg-slate-700 text-slate-300'
+                    }`}>
+                      {u.role}
+                    </span>
+                  </td>
+                  <td className="px-5 py-4">
+                    {u.role !== 'admin' && (
+                      <button
+                        onClick={() => handleDelete(u._id)}
+                        className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-sm transition"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {users.length === 0 && <p className="px-5 py-6 text-slate-500">No users found.</p>}
+        </div>
       </div>
     </div>
   );
