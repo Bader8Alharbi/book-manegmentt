@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 
 import Home from './pages/Home';
+import Browse from './pages/Browse';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import BookDetail from './pages/BookDetail';
@@ -29,7 +30,7 @@ function App() {
         <Route path="/books/:id" element={<BookDetail />} />
 
         {/* Customer */}
-        <Route path="/books" element={<Home />} />
+        <Route path="/browse" element={<Browse />} />
         <Route path="/my-books" element={<ProtectedRoute><MyBooks /></ProtectedRoute>} />
 
         {/* Admin */}

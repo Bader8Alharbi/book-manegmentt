@@ -21,7 +21,7 @@ const Navbar = () => {
 
       <div className="flex items-center gap-4 text-sm font-medium">
         <Link to="/" className="hover:text-indigo-400 transition">Home</Link>
-        <Link to="/books" className="hover:text-indigo-400 transition">Books</Link>
+        <Link to="/browse" className="hover:text-indigo-400 transition">Browse</Link>
 
         {user ? (
           <>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import axiosInstance from '../axiosConfig';
 import { useAuth } from '../context/AuthContext';
+import { Link } from 'react-router-dom';
 
 const MyBooks = () => {
   const { user } = useAuth();
@@ -28,33 +29,44 @@ const MyBooks = () => {
     }
   };
 
-  if (loading) return <div className="p-6">Loading...</div>;
+  if (loading) return <div className="min-h-screen bg-slate-950 text-slate-400 flex items-center justify-center">Loading...</div>;
 
   return (
-    <div className="max-w-5xl mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-6">My Borrowed Books</h1>
-      {books.length === 0 ? (
-        <div className="bg-white p-6 rounded shadow text-gray-600">You have no borrowed books.</div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-          {books.map(book => (
-            <div key={book._id} className="bg-white rounded-lg shadow p-4">
-              <img src={book.coverImage} alt={book.title} className="w-full h-48 object-cover rounded mb-3" />
-              <h2 className="font-bold text-lg">{book.title}</h2>
-              <p className="text-gray-600 text-sm mb-1">{book.author}</p>
-              <p className="text-gray-500 text-sm mb-3">
-                Borrowed: {book.borrowedAt ? new Date(book.borrowedAt).toLocaleDateString() : 'N/A'}
-              </p>
-              <button
-                onClick={() => handleReturn(book._id)}
-                className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
-              >
-                Return Book
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+    <div className="min-h-screen bg-slate-950 px-6 py-10">
+      <div className="max-w-5xl mx-auto">
+        <h1 className="text-4xl font-bold text-white mb-2">My Borrowed Books</h1>
+        <p className="text-slate-400 mb-8">Books you currently have borrowed</p>
+
+        {books.length === 0 ? (
+          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-10 text-center">
+            <p className="text-slate-400 text-lg mb-4">You have no borrowed books.</p>
+            <Link to="/" className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl transition">
+              Browse Books
+            </Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+            {books.map(book => (
+              <div key={book._id} className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+                <img src={book.coverImage} alt={book.title} className="w-full h-48 object-cover" />
+                <div className="p-4">
+                  <h2 className="text-white font-bold text-base mb-1">{book.title}</h2>
+                  <p className="text-slate-400 text-sm mb-1">{book.author}</p>
+                  <p className="text-slate-500 text-xs mb-4">
+                    Borrowed: {book.borrowedAt ? new Date(book.borrowedAt).toLocaleDateString() : 'N/A'}
+                  </p>
+                  <button
+                    onClick={() => handleReturn(book._id)}
+                    className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2 rounded-xl transition"
+                  >
+                    Return Book
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
