@@ -11,39 +11,40 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="bg-blue-600 text-white p-4 flex justify-between items-center">
-      <Link to="/">
-        <div className="bg-white rounded-full px-4 py-2 shadow-sm inline-flex items-center">
+    <nav className="bg-gradient-to-r from-slate-900 to-slate-800 text-white px-6 py-4 flex justify-between items-center shadow-lg">
+      <Link to="/" className="flex items-center gap-3">
+        <div className="bg-white rounded-full p-1 shadow">
           <img src="/LIBRARY LOGO.png" alt="Library logo" className="h-8 w-auto object-contain" />
         </div>
+        <span className="text-xl font-bold tracking-wide text-white">BookVault</span>
       </Link>
 
-      <div className="flex items-center gap-4">
-        <Link to="/" className="hover:underline">Home</Link>
-        <Link to="/books" className="hover:underline">Books</Link>
+      <div className="flex items-center gap-4 text-sm font-medium">
+        <Link to="/" className="hover:text-indigo-400 transition">Home</Link>
+        <Link to="/books" className="hover:text-indigo-400 transition">Books</Link>
 
         {user ? (
           <>
             {user.role === 'admin' ? (
               <>
-                <Link to="/admin/dashboard" className="hover:underline">Admin Panel</Link>
-                <Link to="/admin/books" className="hover:underline">Manage Books</Link>
-                <Link to="/admin/users" className="hover:underline">Manage Users</Link>
+                <Link to="/admin/dashboard" className="hover:text-indigo-400 transition">Dashboard</Link>
+                <Link to="/admin/books" className="hover:text-indigo-400 transition">Books</Link>
+                <Link to="/admin/users" className="hover:text-indigo-400 transition">Users</Link>
               </>
             ) : (
-              <Link to="/my-books" className="hover:underline">My Borrowed Books</Link>
+              <Link to="/my-books" className="hover:text-indigo-400 transition">My Books</Link>
             )}
             <button
               onClick={handleLogout}
-              className="bg-red-500 px-4 py-2 rounded hover:bg-red-700"
+              className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg transition"
             >
               Logout
             </button>
           </>
         ) : (
           <>
-            <Link to="/login" className="hover:underline">Login</Link>
-            <Link to="/register" className="bg-green-500 px-4 py-2 rounded hover:bg-green-700">
+            <Link to="/login" className="hover:text-indigo-400 transition">Login</Link>
+            <Link to="/register" className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg transition">
               Register
             </Link>
           </>

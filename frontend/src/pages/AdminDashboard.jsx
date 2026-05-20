@@ -3,6 +3,13 @@ import { useAuth } from '../context/AuthContext';
 import { useEffect, useState } from 'react';
 import axiosInstance from '../axiosConfig';
 
+const StatCard = ({ value, label, color }) => (
+  <div className={`${color} rounded-xl p-5 text-center border border-slate-700`}>
+    <p className="text-4xl font-bold text-white mb-1">{value}</p>
+    <p className="text-slate-300 text-sm">{label}</p>
+  </div>
+);
+
 const AdminDashboard = () => {
   const { user } = useAuth();
   const [stats, setStats] = useState({ total: 0, borrowed: 0, available: 0, users: 0 });
@@ -33,43 +40,33 @@ const AdminDashboard = () => {
   }, [user]);
 
   return (
-    <div className="max-w-5xl mx-auto p-6">
-      <div className="bg-white shadow-md rounded p-6">
-        <h1 className="text-3xl font-bold mb-2">Admin Dashboard</h1>
-        <p className="text-gray-600 mb-6">Welcome, {user?.name}</p>
+    <div className="min-h-screen bg-slate-950 px-6 py-10">
+      <div className="max-w-5xl mx-auto">
+        <h1 className="text-4xl font-bold text-white mb-1">Admin Dashboard</h1>
+        <p className="text-slate-400 mb-10">Welcome back, {user?.name}</p>
 
-        {loading ? <p>Loading statistics...</p> : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <div className="bg-blue-100 p-4 rounded shadow text-center">
-              <p className="text-3xl font-bold">{stats.total}</p>
-              <p className="text-gray-600">Total Books</p>
-            </div>
-            <div className="bg-green-100 p-4 rounded shadow text-center">
-              <p className="text-3xl font-bold">{stats.available}</p>
-              <p className="text-gray-600">Available</p>
-            </div>
-            <div className="bg-yellow-100 p-4 rounded shadow text-center">
-              <p className="text-3xl font-bold">{stats.borrowed}</p>
-              <p className="text-gray-600">Borrowed</p>
-            </div>
-            <div className="bg-purple-100 p-4 rounded shadow text-center">
-              <p className="text-3xl font-bold">{stats.users}</p>
-              <p className="text-gray-600">Users</p>
-            </div>
+        {loading ? (
+          <p className="text-slate-400">Loading statistics...</p>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+            <StatCard value={stats.total} label="Total Books" color="bg-indigo-900/50" />
+            <StatCard value={stats.available} label="Available" color="bg-emerald-900/50" />
+            <StatCard value={stats.borrowed} label="Borrowed" color="bg-amber-900/50" />
+            <StatCard value={stats.users} label="Users" color="bg-purple-900/50" />
           </div>
         )}
 
-        <div className="flex flex-wrap gap-4">
-          <Link to="/admin/books" className="bg-blue-600 text-white px-5 py-2 rounded hover:bg-blue-700">
+        <div className="flex flex-wrap gap-3">
+          <Link to="/admin/books" className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-medium transition">
             Manage Books
           </Link>
-          <Link to="/admin/books/add" className="bg-green-600 text-white px-5 py-2 rounded hover:bg-green-700">
+          <Link to="/admin/books/add" className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-medium transition">
             Add New Book
           </Link>
-          <Link to="/admin/users" className="bg-purple-600 text-white px-5 py-2 rounded hover:bg-purple-700">
+          <Link to="/admin/users" className="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-xl font-medium transition">
             Manage Users
           </Link>
-          <Link to="/admin/borrowed" className="bg-yellow-600 text-white px-5 py-2 rounded hover:bg-yellow-700">
+          <Link to="/admin/borrowed" className="bg-amber-600 hover:bg-amber-700 text-white px-5 py-2.5 rounded-xl font-medium transition">
             Borrowed Books
           </Link>
         </div>

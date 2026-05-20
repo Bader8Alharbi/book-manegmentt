@@ -45,34 +45,34 @@ const BookDetail = () => {
     }
   };
 
-  if (loading) return <div className="max-w-6xl mx-auto p-6">Loading book details...</div>;
+  if (loading) return <div className="min-h-screen bg-slate-950 text-slate-400 flex items-center justify-center">Loading...</div>;
   if (!book) return (
-    <div className="max-w-6xl mx-auto p-6">
-      <p className="mb-4">Book not found.</p>
-      <Link to="/" className="bg-blue-600 text-white px-4 py-2 rounded">Back to Home</Link>
+    <div className="min-h-screen bg-slate-950 text-slate-400 flex flex-col items-center justify-center gap-4">
+      <p>Book not found.</p>
+      <Link to="/" className="bg-indigo-600 text-white px-4 py-2 rounded-xl">Back to Home</Link>
     </div>
   );
 
   const isBorrowedByMe = book.borrowedBy?._id === user?.id || book.borrowedBy === user?.id;
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
-      <div className="bg-white rounded-xl shadow p-6">
+    <div className="min-h-screen bg-slate-950 px-6 py-10">
+      <div className="max-w-5xl mx-auto bg-slate-800 border border-slate-700 rounded-2xl shadow-xl p-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="md:col-span-1">
-            <img src={book.coverImage} alt={book.title} className="w-full max-w-xs mx-auto rounded-lg shadow object-cover" />
+            <img src={book.coverImage} alt={book.title} className="w-full rounded-xl shadow-lg object-cover" />
           </div>
 
           <div className="md:col-span-2">
-            <h1 className="text-3xl font-bold mb-4">{book.title}</h1>
-            <div className="space-y-3 text-lg">
-              <p><strong>Author:</strong> {book.author}</p>
-              <p><strong>Category:</strong> {book.category}</p>
-              <p><strong>ISBN:</strong> {book.isbn}</p>
+            <h1 className="text-3xl font-bold text-white mb-4">{book.title}</h1>
+            <div className="space-y-3 text-slate-300">
+              <p><span className="text-slate-500">Author:</span> {book.author}</p>
+              <p><span className="text-slate-500">Category:</span> {book.category}</p>
+              <p><span className="text-slate-500">ISBN:</span> {book.isbn}</p>
               <p>
-                <strong>Status:</strong>{' '}
-                <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                  book.status === 'available' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                <span className="text-slate-500">Status: </span>
+                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                  book.status === 'available' ? 'bg-emerald-900 text-emerald-400' : 'bg-amber-900 text-amber-400'
                 }`}>
                   {book.status}
                 </span>
@@ -80,42 +80,42 @@ const BookDetail = () => {
             </div>
 
             <div className="mt-6">
-              <h2 className="text-2xl font-semibold mb-3">Description</h2>
-              <div className="bg-gray-50 border rounded-lg p-4 text-gray-700 leading-7">
+              <h2 className="text-xl font-semibold text-white mb-3">Description</h2>
+              <p className="bg-slate-900 border border-slate-700 rounded-xl p-4 text-slate-400 leading-7">
                 {book.description || 'No description available.'}
-              </div>
+              </p>
             </div>
 
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link to="/" className="bg-blue-600 text-white px-4 py-2 rounded">Back to Home</Link>
+              <Link to="/" className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-xl transition">← Back</Link>
 
               {!user && (
-                <Link to="/login" className="bg-green-600 text-white px-4 py-2 rounded">
+                <Link to="/login" className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl transition">
                   Login to Borrow
                 </Link>
               )}
 
-              {user && user.role === 'admin' && (
-                <Link to={`/admin/books/edit/${book._id}`} className="bg-yellow-500 text-white px-4 py-2 rounded">
+              {user?.role === 'admin' && (
+                <Link to={`/admin/books/edit/${book._id}`} className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-xl transition">
                   Edit Book
                 </Link>
               )}
 
-              {user && user.role === 'customer' && book.status === 'available' && (
+              {user?.role === 'customer' && book.status === 'available' && (
                 <button
                   onClick={handleBorrow}
                   disabled={actionLoading}
-                  className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl transition disabled:opacity-50"
                 >
                   {actionLoading ? 'Processing...' : 'Borrow Book'}
                 </button>
               )}
 
-              {user && user.role === 'customer' && isBorrowedByMe && (
+              {user?.role === 'customer' && isBorrowedByMe && (
                 <button
                   onClick={handleReturn}
                   disabled={actionLoading}
-                  className="bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600 disabled:opacity-50"
+                  className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-xl transition disabled:opacity-50"
                 >
                   {actionLoading ? 'Processing...' : 'Return Book'}
                 </button>

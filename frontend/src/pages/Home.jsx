@@ -25,45 +25,47 @@ const Home = () => {
   }, [books, searchTerm]);
 
   return (
-    <div>
-      {/* Hero section — replace bg-blue-800 with bg-[url('/hero.jpg')] bg-cover when you have the image */}
-      <div
-        className="bg-blue-800 bg-cover bg-center text-white py-20 px-6 text-center"
-        style={{ backgroundImage: "url('/hero-bg.jpg')" }}
-      >
-        <h1 className="text-5xl font-bold mb-4 drop-shadow">Welcome to the Library</h1>
-        <p className="text-xl mb-8 drop-shadow">Discover, borrow, and explore thousands of books</p>
+    <div className="min-h-screen bg-slate-950">
+      {/* Hero */}
+      <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 py-24 px-6 text-center">
+        <h1 className="text-5xl font-bold text-white mb-4 tracking-tight">Discover Your Next Book</h1>
+        <p className="text-indigo-300 text-xl mb-10">Browse, borrow, and explore our collection</p>
         <input
           type="text"
           placeholder="Search by title, author, or category..."
           value={searchTerm}
           onChange={e => setSearchTerm(e.target.value)}
-          className="w-full max-w-lg p-3 rounded text-gray-800 shadow"
+          className="w-full max-w-xl px-5 py-3 rounded-xl bg-slate-800 text-white placeholder-slate-400 border border-slate-700 focus:outline-none focus:border-indigo-500 shadow-lg"
         />
       </div>
 
-      <div className="max-w-7xl mx-auto p-6">
+      {/* Books Grid */}
+      <div className="max-w-7xl mx-auto px-6 py-12">
         {loading ? (
-          <p className="text-lg">Loading books...</p>
+          <p className="text-slate-400 text-center text-lg">Loading books...</p>
         ) : filteredBooks.length === 0 ? (
-          <div className="bg-white p-6 rounded shadow"><p className="text-gray-700">No matching books found.</p></div>
+          <p className="text-slate-400 text-center text-lg">No matching books found.</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {filteredBooks.map(book => (
               <Link
                 to={`/books/${book._id}`}
                 key={book._id}
-                className="bg-white rounded-lg shadow p-4 hover:shadow-lg transition block"
+                className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden hover:border-indigo-500 hover:shadow-lg hover:shadow-indigo-900/30 transition block"
               >
-                <img src={book.coverImage} alt={book.title} className="w-full h-64 object-cover rounded mb-3" />
-                <h2 className="text-lg font-bold mb-1">{book.title}</h2>
-                <p className="text-gray-600 text-sm mb-1">{book.author}</p>
-                <p className="text-sm text-gray-500 mb-1">{book.category}</p>
-                <span className={`text-xs px-2 py-1 rounded-full font-semibold ${
-                  book.status === 'available' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                }`}>
-                  {book.status}
-                </span>
+                <img src={book.coverImage} alt={book.title} className="w-full h-52 object-cover" />
+                <div className="p-4">
+                  <h2 className="text-white font-bold text-base mb-1 truncate">{book.title}</h2>
+                  <p className="text-slate-400 text-sm mb-1">{book.author}</p>
+                  <p className="text-slate-500 text-xs mb-3">{book.category}</p>
+                  <span className={`text-xs px-2 py-1 rounded-full font-semibold ${
+                    book.status === 'available'
+                      ? 'bg-emerald-900 text-emerald-400'
+                      : 'bg-amber-900 text-amber-400'
+                  }`}>
+                    {book.status}
+                  </span>
+                </div>
               </Link>
             ))}
           </div>

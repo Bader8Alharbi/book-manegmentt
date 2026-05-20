@@ -22,37 +22,37 @@ const Login = () => {
   };
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center bg-gray-100 bg-cover bg-center"
-      style={{ backgroundImage: "url('/login-bg.jpg')" }}
-    >
-      <form onSubmit={handleSubmit} className="bg-white p-8 shadow-lg rounded-lg w-full max-w-md">
-        <h1 className="text-2xl font-bold mb-6 text-center">Login</h1>
-        {error && <p className="text-red-500 mb-4 text-sm">{error}</p>}
-        <input
-          type="email"
-          placeholder="Email"
-          value={formData.email}
-          onChange={e => setFormData({ ...formData, email: e.target.value })}
-          className="w-full mb-4 p-3 border rounded"
-          required
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={formData.password}
-          onChange={e => setFormData({ ...formData, password: e.target.value })}
-          className="w-full mb-6 p-3 border rounded"
-          required
-        />
-        <button type="submit" className="w-full bg-blue-600 text-white p-3 rounded hover:bg-blue-700">
-          Login
-        </button>
-        <p className="text-center text-sm mt-4 text-gray-600">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 flex items-center justify-center px-4">
+      <div className="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md p-8">
+        <h1 className="text-3xl font-bold text-white text-center mb-2">Welcome Back</h1>
+        <p className="text-slate-400 text-center mb-8 text-sm">Sign in to your account</p>
+        {error && <p className="text-red-400 bg-red-900/30 border border-red-800 rounded-lg px-4 py-2 mb-6 text-sm">{error}</p>}
+        <form onSubmit={handleSubmit}>
+          <input
+            type="email"
+            placeholder="Email"
+            value={formData.email}
+            onChange={e => setFormData({ ...formData, email: e.target.value })}
+            className="w-full mb-4 px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+            required
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            value={formData.password}
+            onChange={e => setFormData({ ...formData, password: e.target.value })}
+            className="w-full mb-6 px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+            required
+          />
+          <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-semibold transition">
+            Sign In
+          </button>
+        </form>
+        <p className="text-center text-sm mt-6 text-slate-400">
           Don't have an account?{' '}
-          <Link to="/register" className="text-blue-600 hover:underline">Register</Link>
+          <Link to="/register" className="text-indigo-400 hover:underline">Register</Link>
         </p>
-      </form>
+      </div>
     </div>
   );
 };
