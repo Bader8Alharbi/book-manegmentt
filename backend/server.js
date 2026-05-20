@@ -14,6 +14,7 @@ app.use(express.json());
 app.use(requestLogger);
 app.use('/api/auth',  require('./routes/authRoutes'));
 app.use('/api/books', bookRoutes);
+app.use('/api/admin', require('./routes/adminRoutes'));
 
 if (require.main === module) {
     db.connect();

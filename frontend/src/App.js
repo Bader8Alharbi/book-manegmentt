@@ -1,36 +1,44 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
+import ProtectedRoute from './components/ProtectedRoute';
+import AdminRoute from './components/AdminRoute';
+
+import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
-// import Profile from './pages/Profile';
-// import Books from './pages/Books';
-
-import Dashboard from "./pages/Dashboard";
-import BooksList from "./pages/BooksList";
-import AddBook from "./pages/AddBook";
-import EditBook from "./pages/EditBook";
-import Home from "./pages/Home";
 import BookDetail from './pages/BookDetail';
+import MyBooks from './pages/MyBooks';
 
-import ProtectedRoute from './components/ProtectedRoute';
-
-
+// Admin pages
+import AdminDashboard from './pages/AdminDashboard';
+import AdminBooks from './pages/AdminBooks';
+import AdminUsers from './pages/AdminUsers';
+import AdminBorrowed from './pages/AdminBorrowed';
+import AddBook from './pages/AddBook';
+import EditBook from './pages/EditBook';
 
 function App() {
   return (
     <Router>
       <Navbar />
       <Routes>
+        {/* Public */}
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/books" element={<BooksList />} />
         <Route path="/books/:id" element={<BookDetail />} />
 
-        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-        <Route path="/books/add" element={<ProtectedRoute><AddBook /></ProtectedRoute>} />
-        <Route path="/books/edit/:id" element={<ProtectedRoute><EditBook /></ProtectedRoute>} />
+        {/* Customer */}
+        <Route path="/books" element={<Home />} />
+        <Route path="/my-books" element={<ProtectedRoute><MyBooks /></ProtectedRoute>} />
 
+        {/* Admin */}
+        <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+        <Route path="/admin/books" element={<AdminRoute><AdminBooks /></AdminRoute>} />
+        <Route path="/admin/books/add" element={<AdminRoute><AddBook /></AdminRoute>} />
+        <Route path="/admin/books/edit/:id" element={<AdminRoute><EditBook /></AdminRoute>} />
+        <Route path="/admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
+        <Route path="/admin/borrowed" element={<AdminRoute><AdminBorrowed /></AdminRoute>} />
       </Routes>
     </Router>
   );

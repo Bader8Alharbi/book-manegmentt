@@ -34,7 +34,7 @@ const AddBook = () => {
         },
       });
 
-      navigate("/books");
+      navigate("/admin/books");
     } catch (error) {
       console.error("Failed to add book:", error);
       alert(error.response?.data?.message || "Failed to add book.");
@@ -125,7 +125,7 @@ const AddBook = () => {
 
             <button
               type="button"
-              onClick={() => navigate("/books")}
+              onClick={() => navigate("/admin/books")}
               className="bg-gray-500 text-white px-4 py-2 rounded"
             >
               Cancel

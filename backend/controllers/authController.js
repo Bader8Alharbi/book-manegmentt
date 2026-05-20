@@ -19,7 +19,7 @@ class AuthController extends BaseController {
 
             const user = await User.create({ name, email, password });
             res.status(201).json({
-                id: user.id, name: user.name, email: user.email,
+                id: user.id, name: user.name, email: user.email, role: user.role,
                 token: this._generateToken(user.id),
             });
         } catch (error) {
@@ -33,7 +33,7 @@ class AuthController extends BaseController {
             const user = await User.findOne({ email });
             if (user && (await bcrypt.compare(password, user.password))) {
                 res.json({
-                    id: user.id, name: user.name, email: user.email,
+                    id: user.id, name: user.name, email: user.email, role: user.role,
                     token: this._generateToken(user.id),
                 });
             } else {
