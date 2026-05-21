@@ -1,8 +1,8 @@
 {
   "info": {
-    "_postman_id": "bm-api-collection-v1",
+    "_postman_id": "bm-api-collection-v2",
     "name": "Book Manager API",
-    "description": "Complete API collection for the Book Manager MERN application — IFN636 Assessment 2",
+    "description": "Complete API collection for the Book Manager MERN application — IFN636 Assessment 2.\n\nv2 adds the Admin folder with the 3 admin endpoints (GetAllUsers, DeleteUser, GetBorrowedBooks) and test scripts that mirror the Mocha tests FT-24 through FT-31.\n\nUsage:\n1. Set the baseUrl collection variable (http://localhost:5001 for local OR your ALB DNS for production).\n2. Run 'Login User' first — the test script auto-captures the JWT into the {{token}} variable used by every protected request.\n3. For Admin requests, log in as the seeded admin (admin@library.com / Admin@1234).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -38,6 +38,22 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"badr@example.com\",\n  \"password\": \"password123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login as Admin",
+          "event": [{
+            "listen": "test",
+            "script": { "exec": ["pm.test('Admin login returns admin token', function () {", "  var json = pm.response.json();", "  pm.expect(json).to.have.property('token');", "  pm.expect(json.role).to.eql('admin');", "  pm.collectionVariables.set('token', json.token);", "});"], "type": "text/javascript" }
+          }],
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api","auth","login"] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@library.com\",\n  \"password\": \"Admin@1234\"\n}"
             }
           }
         },
@@ -169,6 +185,135 @@
           "request": {
             "method": "DELETE",
             "url": { "raw": "{{baseUrl}}/api/books/:id/reviews/:reviewId", "host": ["{{baseUrl}}"], "path": ["api","books",":id","reviews",":reviewId"], "variable": [{ "key": "id", "value": "BOOK_ID_HERE" }, { "key": "reviewId", "value": "REVIEW_ID_HERE" }] },
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "description": "Admin-only endpoints. Run 'Login as Admin' from the Auth folder first to capture an admin token into {{token}}.",
+      "item": [
+        {
+          "name": "Admin - Get All Users",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "pm.test('FT-24: Status code is 200', function () {",
+                "  pm.response.to.have.status(200);",
+                "});",
+                "pm.test('FT-25: Response is an array of users with no password field', function () {",
+                "  var users = pm.response.json();",
+                "  pm.expect(users).to.be.an('array');",
+                "  if (users.length > 0) {",
+                "    pm.expect(users[0]).to.not.have.property('password');",
+                "    pm.expect(users[0]).to.have.property('email');",
+                "    pm.expect(users[0]).to.have.property('role');",
+                "  }",
+                "});"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/admin/users", "host": ["{{baseUrl}}"], "path": ["api","admin","users"] },
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Admin - Delete User (customer - success)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "pm.test('FT-26: Customer delete returns 200', function () {",
+                "  pm.response.to.have.status(200);",
+                "});",
+                "pm.test('Response has confirmation message', function () {",
+                "  pm.expect(pm.response.json()).to.have.property('message');",
+                "});"
+              ]
+            }
+          }],
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/api/admin/users/:id", "host": ["{{baseUrl}}"], "path": ["api","admin","users",":id"], "variable": [{ "key": "id", "value": "CUSTOMER_USER_ID_HERE" }] },
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Admin - Delete User (not found)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "pm.test('FT-27: Returns 404 when user does not exist', function () {",
+                "  pm.response.to.have.status(404);",
+                "});"
+              ]
+            }
+          }],
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/api/admin/users/000000000000000000000000", "host": ["{{baseUrl}}"], "path": ["api","admin","users","000000000000000000000000"] },
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "description": "Uses a syntactically-valid ObjectId that does not exist in the DB to confirm the 404 path."
+          }
+        },
+        {
+          "name": "Admin - Delete User (admin - refused)",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "pm.test('FT-28: Returns 400 when target is an admin', function () {",
+                "  pm.response.to.have.status(400);",
+                "});",
+                "pm.test('Message says cannot delete admin', function () {",
+                "  pm.expect(pm.response.text()).to.include('admin');",
+                "});"
+              ]
+            }
+          }],
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/api/admin/users/:id", "host": ["{{baseUrl}}"], "path": ["api","admin","users",":id"], "variable": [{ "key": "id", "value": "ADMIN_USER_ID_HERE" }] },
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "description": "Replace ADMIN_USER_ID_HERE with the _id of the seeded admin user (admin@library.com). Confirms the system refuses to delete an admin."
+          }
+        },
+        {
+          "name": "Admin - Get Borrowed Books",
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "pm.test('FT-30: Status code is 200', function () {",
+                "  pm.response.to.have.status(200);",
+                "});",
+                "pm.test('FT-31: Each book is borrowed and has borrowedBy + createdBy populated', function () {",
+                "  var books = pm.response.json();",
+                "  pm.expect(books).to.be.an('array');",
+                "  if (books.length > 0) {",
+                "    pm.expect(books[0]).to.have.property('status', 'borrowed');",
+                "    pm.expect(books[0].borrowedBy).to.be.an('object');",
+                "    pm.expect(books[0].borrowedBy).to.have.property('name');",
+                "    pm.expect(books[0].borrowedBy).to.have.property('email');",
+                "    pm.expect(books[0].createdBy).to.be.an('object');",
+                "  }",
+                "});"
+              ]
+            }
+          }],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/admin/borrowed", "host": ["{{baseUrl}}"], "path": ["api","admin","borrowed"] },
             "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
           }
         }
