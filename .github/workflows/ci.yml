@@ -20,7 +20,10 @@ jobs:
 
       - name: Install Backend Dependencies
         working-directory: ./backend
-        run: npm install
+        run: |
+          rm -rf node_modules
+          npm install
+          chmod +x node_modules/.bin/mocha
 
       - name: Install Frontend and Build
         working-directory: ./frontend
