@@ -15,6 +15,8 @@ import AdminDashboard from './pages/AdminDashboard';
 import AdminBooks from './pages/AdminBooks';
 import AdminUsers from './pages/AdminUsers';
 import AdminBorrowed from './pages/AdminBorrowed';
+import AdminBorrowRequests from './pages/AdminBorrowRequests';
+import AdminHistory from './pages/AdminHistory';
 import AddBook from './pages/AddBook';
 import EditBook from './pages/EditBook';
 
@@ -34,12 +36,14 @@ function App() {
         <Route path="/my-books" element={<ProtectedRoute><MyBooks /></ProtectedRoute>} />
 
         {/* Admin */}
-        <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
-        <Route path="/admin/books" element={<AdminRoute><AdminBooks /></AdminRoute>} />
-        <Route path="/admin/books/add" element={<AdminRoute><AddBook /></AdminRoute>} />
-        <Route path="/admin/books/edit/:id" element={<AdminRoute><EditBook /></AdminRoute>} />
-        <Route path="/admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
-        <Route path="/admin/borrowed" element={<AdminRoute><AdminBorrowed /></AdminRoute>} />
+        <Route path="/admin/dashboard"        element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+        <Route path="/admin/books"            element={<AdminRoute><AdminBooks /></AdminRoute>} />
+        <Route path="/admin/books/add"        element={<AdminRoute><AddBook /></AdminRoute>} />
+        <Route path="/admin/books/edit/:id"   element={<AdminRoute><EditBook /></AdminRoute>} />
+        <Route path="/admin/users"            element={<AdminRoute><AdminUsers /></AdminRoute>} />
+        <Route path="/admin/borrowed"         element={<AdminRoute><AdminBorrowed /></AdminRoute>} />
+        <Route path="/admin/borrow-requests"  element={<AdminRoute><AdminBorrowRequests /></AdminRoute>} />
+        <Route path="/admin/history"          element={<AdminRoute><AdminHistory /></AdminRoute>} />
       </Routes>
     </Router>
   );

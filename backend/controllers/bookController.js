@@ -5,6 +5,7 @@ const BaseController = require('./BaseController');
 const Book = require('../models/Book');
 const bookRepository = require('../repositories/BookRepository');
 const bookEvents = require('../events/bookEvents');
+const DeletedRecord = require('../models/DeletedRecord');
 
 class BookController extends BaseController {
     // C – Create a new book
@@ -72,6 +73,11 @@ class BookController extends BaseController {
         try {
             const book = await Book.findById(req.params.id);
             if (!book) return this.notFound(res, 'Book');
+            await DeletedRecord.create({
+                recordType: 'book',
+                data: book.toObject(),
+                deletedBy: req.user._id,
+            });
             await book.deleteOne();
             bookEvents.emit('book:deleted', { id: req.params.id });
             res.status(200).json({ message: 'Book deleted successfully' });

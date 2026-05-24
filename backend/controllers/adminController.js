@@ -4,6 +4,7 @@
 const BaseController = require('./BaseController');
 const User = require('../models/User');
 const Book = require('../models/Book');
+const DeletedRecord = require('../models/DeletedRecord');
 
 class AdminController extends BaseController {
 
@@ -25,6 +26,11 @@ class AdminController extends BaseController {
             if (user.role === 'admin') {
                 return this.badRequest(res, 'Cannot delete admin');
             }
+            await DeletedRecord.create({
+                recordType: 'user',
+                data: user.toObject(),
+                deletedBy: req.user._id,
+            });
             await user.deleteOne();
             res.status(200).json({ message: 'User deleted' });
         } catch (error) {
@@ -43,12 +49,25 @@ class AdminController extends BaseController {
             this.handleError(res, error);
         }
     }
+
+    // GET /api/admin/history
+    async getHistory(req, res) {
+        try {
+            const records = await DeletedRecord.find()
+                .populate('deletedBy', 'name email')
+                .sort({ createdAt: -1 });
+            res.status(200).json(records);
+        } catch (error) {
+            this.handleError(res, error);
+        }
+    }
 }
 
 const adminController = new AdminController();
 
 module.exports = {
-    getAllUsers:       adminController.getAllUsers.bind(adminController),
-    deleteUser:        adminController.deleteUser.bind(adminController),
-    getBorrowedBooks:  adminController.getBorrowedBooks.bind(adminController),
+    getAllUsers:      adminController.getAllUsers.bind(adminController),
+    deleteUser:       adminController.deleteUser.bind(adminController),
+    getBorrowedBooks: adminController.getBorrowedBooks.bind(adminController),
+    getHistory:       adminController.getHistory.bind(adminController),
 };

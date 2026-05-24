@@ -12,23 +12,26 @@ const StatCard = ({ value, label, color }) => (
 
 const AdminDashboard = () => {
   const { user } = useAuth();
-  const [stats, setStats] = useState({ total: 0, borrowed: 0, available: 0, users: 0 });
+  const [stats, setStats] = useState({ total: 0, borrowed: 0, available: 0, users: 0, pendingRequests: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
         const headers = { Authorization: `Bearer ${user.token}` };
-        const [booksRes, usersRes] = await Promise.all([
+        const [booksRes, usersRes, requestsRes] = await Promise.all([
           axiosInstance.get('/api/books'),
           axiosInstance.get('/api/admin/users', { headers }),
+          axiosInstance.get('/api/admin/borrow-requests', { headers }),
         ]);
-        const books = booksRes.data;
+        const books    = booksRes.data;
+        const requests = requestsRes.data;
         setStats({
-          total: books.length,
-          borrowed: books.filter(b => b.status === 'borrowed').length,
-          available: books.filter(b => b.status === 'available').length,
-          users: usersRes.data.length,
+          total:           books.length,
+          borrowed:        books.filter(b => b.status === 'borrowed').length,
+          available:       books.filter(b => b.status === 'available').length,
+          users:           usersRes.data.length,
+          pendingRequests: requests.filter(r => r.status === 'pending' || r.status === 'return_pending').length,
         });
       } catch (err) {
         console.error(err);
@@ -48,11 +51,12 @@ const AdminDashboard = () => {
         {loading ? (
           <p className="text-slate-400">Loading statistics...</p>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
-            <StatCard value={stats.total} label="Total Books" color="bg-indigo-900/50" />
-            <StatCard value={stats.available} label="Available" color="bg-emerald-900/50" />
-            <StatCard value={stats.borrowed} label="Borrowed" color="bg-amber-900/50" />
-            <StatCard value={stats.users} label="Users" color="bg-purple-900/50" />
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-10">
+            <StatCard value={stats.total}           label="Total Books"      color="bg-indigo-900/50" />
+            <StatCard value={stats.available}       label="Available"        color="bg-emerald-900/50" />
+            <StatCard value={stats.borrowed}        label="Borrowed"         color="bg-amber-900/50" />
+            <StatCard value={stats.users}           label="Users"            color="bg-purple-900/50" />
+            <StatCard value={stats.pendingRequests} label="Pending Requests" color="bg-rose-900/50" />
           </div>
         )}
 
@@ -68,6 +72,17 @@ const AdminDashboard = () => {
           </Link>
           <Link to="/admin/borrowed" className="bg-amber-600 hover:bg-amber-700 text-white px-5 py-2.5 rounded-xl font-medium transition">
             Borrowed Books
+          </Link>
+          <Link to="/admin/borrow-requests" className="bg-rose-600 hover:bg-rose-700 text-white px-5 py-2.5 rounded-xl font-medium transition flex items-center gap-2">
+            Borrow Requests
+            {stats.pendingRequests > 0 && (
+              <span className="bg-white text-rose-700 text-xs font-bold px-1.5 py-0.5 rounded-full">
+                {stats.pendingRequests}
+              </span>
+            )}
+          </Link>
+          <Link to="/admin/history" className="bg-slate-600 hover:bg-slate-500 text-white px-5 py-2.5 rounded-xl font-medium transition">
+            Deletion History
           </Link>
         </div>
       </div>

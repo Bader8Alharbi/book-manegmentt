@@ -7,6 +7,7 @@ const mongoose = require('mongoose');
 const sinon = require('sinon');
 
 const Book = require('../models/Book');
+const DeletedRecord = require('../models/DeletedRecord');
 const { createBook, getBooks, getBookById, updateBook, deleteBook } = require('../controllers/bookController');
 const { expect } = chai;
 
@@ -261,12 +262,14 @@ describe('DeleteBook Function Test', () => {
 
     it('should delete book successfully', async () => {
         const book = {
-            deleteOne: sinon.stub().resolves()
+            deleteOne: sinon.stub().resolves(),
+            toObject:  sinon.stub().returns({ title: 'Test' }),
         };
 
-        const findByIdStub = sinon.stub(Book, 'findById').resolves(book);
+        const findByIdStub    = sinon.stub(Book, 'findById').resolves(book);
+        const createRecordStub = sinon.stub(DeletedRecord, 'create').resolves({});
 
-        const req = { params: { id: new mongoose.Types.ObjectId() } };
+        const req = { params: { id: new mongoose.Types.ObjectId() }, user: { _id: new mongoose.Types.ObjectId() } };
         const res = {
             status: sinon.stub().returnsThis(),
             json: sinon.spy()
@@ -279,6 +282,7 @@ describe('DeleteBook Function Test', () => {
         expect(res.json.calledWith({ message: 'Book deleted successfully' })).to.be.true;
 
         findByIdStub.restore();
+        createRecordStub.restore();
     });
 
     it('should return 404 if book not found', async () => {

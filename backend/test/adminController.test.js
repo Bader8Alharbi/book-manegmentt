@@ -3,6 +3,7 @@ const sinon = require('sinon');
 const mongoose = require('mongoose');
 const User = require('../models/User');
 const Book = require('../models/Book');
+const DeletedRecord = require('../models/DeletedRecord');
 const { getAllUsers, deleteUser, getBorrowedBooks } = require('../controllers/adminController');
 const { expect } = chai;
 
@@ -57,11 +58,13 @@ describe('DeleteUser Function Test', () => {
             name: 'Customer',
             role: 'customer',
             deleteOne: sinon.stub().resolves(),
+            toObject:  sinon.stub().returns({ _id: userId, name: 'Customer', role: 'customer' }),
         };
 
-        const findByIdStub = sinon.stub(User, 'findById').resolves(customer);
+        const findByIdStub     = sinon.stub(User, 'findById').resolves(customer);
+        const createRecordStub = sinon.stub(DeletedRecord, 'create').resolves({});
 
-        const req = { params: { id: userId } };
+        const req = { params: { id: userId }, user: { _id: new mongoose.Types.ObjectId() } };
         const res = { status: sinon.stub().returnsThis(), json: sinon.spy() };
 
         await deleteUser(req, res);
@@ -70,6 +73,7 @@ describe('DeleteUser Function Test', () => {
         expect(res.status.calledWith(200)).to.be.true;
 
         findByIdStub.restore();
+        createRecordStub.restore();
     });
 
     it('should return 404 if the user to delete is not found', async () => {
