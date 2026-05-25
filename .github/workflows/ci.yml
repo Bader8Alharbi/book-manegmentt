@@ -44,6 +44,7 @@ jobs:
 
       - name: Deploy with PM2
         run: |
+          pm2 delete qq-frontend || true
           pm2 reload ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production
 
       - name: Save PM2 process list
