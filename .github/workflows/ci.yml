@@ -11,7 +11,7 @@ jobs:
       matrix:
         include:
           - runner: self-hosted
-          - runner: [self-hosted, server2]
+          - runner: server2
       max-parallel: 2
       fail-fast: false
 
