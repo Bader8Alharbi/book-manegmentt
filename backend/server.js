@@ -1,6 +1,7 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
+const path = require('path');
 const db = require('./config/db');
 const bookRoutes = require('./routes/bookRoutes');
 const requestLogger = require('./middleware/RequestLoggerMiddleware');
@@ -16,6 +17,13 @@ app.use('/api/auth',            require('./routes/authRoutes'));
 app.use('/api/books',           bookRoutes);
 app.use('/api/admin',           require('./routes/adminRoutes'));
 app.use('/api/borrow-requests', require('./routes/borrowRequestRoutes'));
+
+// Serve React build in production
+const buildPath = path.join(__dirname, '../frontend/build');
+app.use(express.static(buildPath));
+app.get('*', (req, res) => {
+    res.sendFile(path.join(buildPath, 'index.html'));
+});
 
 if (require.main === module) {
     db.connect();
