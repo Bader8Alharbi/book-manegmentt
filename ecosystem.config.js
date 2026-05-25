@@ -1,7 +1,7 @@
 module.exports = {
     apps: [
         {
-            name: 'qq-backend',
+            name: 'book-manager',
             script: './backend/server.js',
             exec_mode: 'cluster',
             instances: 'max',
