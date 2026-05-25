@@ -27,6 +27,8 @@ jobs:
 
       - name: Install Frontend and Build
         working-directory: ./frontend
+        env:
+          REACT_APP_API_URL: http://13.236.71.21
         run: |
           rm -rf node_modules
           npm install
@@ -42,7 +44,7 @@ jobs:
           cd backend
           echo "${{ secrets.PROD }}" > .env
 
-      - name: Deploy with PM2
+      - name: Stop all PM2 processes and redeploy
         run: |
           pm2 delete all || true
           pm2 start ecosystem.config.js --env production
@@ -50,7 +52,7 @@ jobs:
 
       - name: Configure Nginx
         run: |
-          sudo tee /etc/nginx/sites-available/book-manager << 'CONF'
+          cat > /tmp/nginx-book-manager << 'CONF'
           server {
               listen 80 default_server;
               location / {
@@ -63,8 +65,13 @@ jobs:
               }
           }
           CONF
-          sudo ln -sf /etc/nginx/sites-available/book-manager /etc/nginx/sites-enabled/book-manager
-          sudo rm -f /etc/nginx/sites-enabled/default
+          if [ -d /etc/nginx/sites-available ]; then
+            sudo cp /tmp/nginx-book-manager /etc/nginx/sites-available/book-manager
+            sudo ln -sf /etc/nginx/sites-available/book-manager /etc/nginx/sites-enabled/book-manager
+            sudo rm -f /etc/nginx/sites-enabled/default
+          elif [ -d /etc/nginx/conf.d ]; then
+            sudo cp /tmp/nginx-book-manager /etc/nginx/conf.d/book-manager.conf
+          fi
           sudo nginx -t && sudo systemctl reload nginx
 
       - name: Show running processes
