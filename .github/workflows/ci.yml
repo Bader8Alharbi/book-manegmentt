@@ -31,7 +31,6 @@ jobs:
         run: |
           rm -rf node_modules
           npm install
-          npm rebuild bcrypt --build-from-source
           chmod +x node_modules/.bin/mocha
 
       - name: Install Frontend and Build

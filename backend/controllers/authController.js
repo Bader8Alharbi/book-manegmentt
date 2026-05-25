@@ -3,7 +3,7 @@
 const BaseController = require('./BaseController');
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 class AuthController extends BaseController {
     // Encapsulated private helper — not exported
