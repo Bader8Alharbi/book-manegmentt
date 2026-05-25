@@ -7,7 +7,7 @@ module.exports = {
             instances: 'max',
             env_production: {
                 NODE_ENV: 'production',
-                PORT: 3000,
+                PORT: 5001,
             },
             watch: false,
             autorestart: true,

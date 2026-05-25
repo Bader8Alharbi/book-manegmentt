@@ -44,11 +44,9 @@ jobs:
 
       - name: Deploy with PM2
         run: |
-          pm2 delete qq-frontend || true
-          pm2 reload ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production
-
-      - name: Save PM2 process list
-        run: pm2 save
+          pm2 delete all || true
+          pm2 start ecosystem.config.js --env production
+          pm2 save
 
       - name: Configure Nginx
         run: |
@@ -56,7 +54,7 @@ jobs:
           server {
               listen 80 default_server;
               location / {
-                  proxy_pass http://localhost:3000;
+                  proxy_pass http://localhost:5001;
                   proxy_http_version 1.1;
                   proxy_set_header Upgrade $http_upgrade;
                   proxy_set_header Connection 'upgrade';
