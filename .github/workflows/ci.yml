@@ -52,14 +52,21 @@ jobs:
           cd backend
           echo "${{ secrets.PROD }}" > .env
 
+      - name: Copy built app to deployment directory
+        run: |
+          mkdir -p ~/book-manager
+          cp -r ./* ~/book-manager/
+
       - name: Deploy with PM2
         run: |
+          cd ~/book-manager
           pm2 delete all || true
           pm2 start ecosystem.config.js --env production
           pm2 save
 
       - name: Configure Nginx
         run: |
+          cd ~/book-manager
           if [ -d /etc/nginx/sites-available ]; then
             sudo cp nginx.conf /etc/nginx/sites-available/book-manager
             sudo ln -sf /etc/nginx/sites-available/book-manager /etc/nginx/sites-enabled/book-manager
