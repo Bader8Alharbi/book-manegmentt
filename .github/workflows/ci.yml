@@ -28,7 +28,7 @@ jobs:
       - name: Install Frontend and Build
         working-directory: ./frontend
         env:
-          REACT_APP_API_URL: http://13.236.71.21
+          REACT_APP_API_URL: http://bookmanager-1596291518.ap-southeast-2.elb.amazonaws.com
         run: |
           rm -rf node_modules
           npm install
@@ -44,7 +44,7 @@ jobs:
           cd backend
           echo "${{ secrets.PROD }}" > .env
 
-      - name: Stop all PM2 processes and redeploy
+      - name: Deploy with PM2
         run: |
           pm2 delete all || true
           pm2 start ecosystem.config.js --env production
@@ -52,27 +52,34 @@ jobs:
 
       - name: Configure Nginx
         run: |
-          cat > /tmp/nginx-book-manager << 'CONF'
-          server {
-              listen 80 default_server;
-              location / {
-                  proxy_pass http://localhost:5001;
-                  proxy_http_version 1.1;
-                  proxy_set_header Upgrade $http_upgrade;
-                  proxy_set_header Connection 'upgrade';
-                  proxy_set_header Host $host;
-                  proxy_cache_bypass $http_upgrade;
-              }
-          }
-          CONF
           if [ -d /etc/nginx/sites-available ]; then
-            sudo cp /tmp/nginx-book-manager /etc/nginx/sites-available/book-manager
+            sudo cp nginx.conf /etc/nginx/sites-available/book-manager
             sudo ln -sf /etc/nginx/sites-available/book-manager /etc/nginx/sites-enabled/book-manager
             sudo rm -f /etc/nginx/sites-enabled/default
-          elif [ -d /etc/nginx/conf.d ]; then
-            sudo cp /tmp/nginx-book-manager /etc/nginx/conf.d/book-manager.conf
+          else
+            sudo cp nginx.conf /etc/nginx/conf.d/book-manager.conf
           fi
           sudo nginx -t && sudo systemctl reload nginx
+
+      - name: Mirror deploy to second server
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER2: ${{ secrets.SERVER2_HOST }}
+          PROD_ENV: ${{ secrets.PROD }}
+        run: |
+          if [ -z "$SERVER2" ] || [ -z "$SSH_KEY" ]; then
+            echo "Skipping: add SERVER2_HOST and SSH_PRIVATE_KEY secrets to enable mirroring"
+            exit 0
+          fi
+          echo "$SSH_KEY" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+          SSH="ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no ubuntu@$SERVER2"
+          rsync -az --exclude '.git' --exclude 'backend/node_modules' --exclude 'frontend/node_modules' \
+            -e "ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no" \
+            ./ ubuntu@$SERVER2:~/book-manager/
+          $SSH "cd ~/book-manager && echo '$PROD_ENV' > backend/.env && cd backend && npm install && cd .. && pm2 delete all || true && pm2 start ecosystem.config.js --env production && pm2 save"
+          $SSH "if [ -d /etc/nginx/sites-available ]; then sudo cp ~/book-manager/nginx.conf /etc/nginx/sites-available/book-manager && sudo ln -sf /etc/nginx/sites-available/book-manager /etc/nginx/sites-enabled/book-manager && sudo rm -f /etc/nginx/sites-enabled/default; else sudo cp ~/book-manager/nginx.conf /etc/nginx/conf.d/book-manager.conf; fi && sudo nginx -t && sudo systemctl reload nginx"
+          rm -f /tmp/deploy_key
 
       - name: Show running processes
         run: pm2 list
