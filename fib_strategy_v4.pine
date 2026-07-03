@@ -1,7 +1,30 @@
 //@version=5
-// Fib Strategy — VISUAL v4.1 (evidence-based defaults). Draws ONLY the latest setup:
+// Fib Strategy — VISUAL v4.2 (evidence-based defaults). Draws ONLY the latest setup:
 //   yellow = entry   green = target   red dashed = stop   solid red steps = live trailing stop
 //
+// ---- CHANGELOG v4.2 (offline backtest #3: fixing the v4.1 QQQ failure) -----
+//  A live run of v4.1 on QQQ daily showed the flaw: win rate 79.8% (held!)
+//  but PF 1.04 - breakeven. Diagnosis: with avg win +0.25R vs avg loss -1R,
+//  the breakeven win rate is exactly 80%. v4.1 had NO margin for error; its
+//  10-stock PF 1.79 was flattered by single-stock gap fills + the bull sample.
+//  v4.2 was re-derived with QQQ 1999-2019 (dot-com AND 2008 bears, real daily
+//  OHLCV) as the DEV set, then required to also pass the 10-stock dev AND
+//  holdout splits, a no-gap-windfall "conservative fill" stress, and finally
+//  validated once on the FULL S&P 500 universe (498 tickers, never used in
+//  selection):
+//    defaults now: prd=8, entryFib=0.5, tgtFib=0.786, stopBuf=1.2, maxHold=80
+//      QQQ 1999-2019   win 88.7%  PF 1.84  (stress-fill PF 1.42)
+//      10 sector stocks win 84.6%  PF 1.78  (dev 85.9/2.13, holdout 83.3/1.54)
+//      full universe    win 83.8%  PF 1.54  pooled over 7,447 trades;
+//        83% of tickers >= 75% win, 73% PF > 1
+//  HOW IT MAKES MONEY NOW: the stop (1.2x range beyond the anchor) is a
+//  DISASTER stop only (~1 hit per 10 trades); routine losers are cut by the
+//  maxHold time exit at a fraction of -1R. The win rate stays high because
+//  the 0.5->0.786 bounce is short, and the economics survive because the
+//  average loss is no longer -1R. A structure-break exit (close below the
+//  anchor -> out next open) was also tested and made things WORSE on QQQ
+//  (cuts winners-in-waiting); it was rejected.
+//  Expect ~3-8 setups/yr per symbol on daily bars - patience, not scalping.
 // ---- CHANGELOG v4.1 (offline backtest #2: 10 US large-caps, one per GICS
 //      sector - AAPL JPM JNJ XOM PG HD CAT NEE DIS AMT - real daily OHLCV
 //      Feb-2013..Feb-2018, Python port of this exact logic, 0.05%/side
@@ -86,16 +109,16 @@
 // ---- CHANGELOG v2: alerts, stats table, date filter, scale-out, ATR stop ----
 // ---- CHANGELOG v1: entry-type toggle, opposite-order cancel, cooldown ------
 // ---------------------------------------------------------------------------
-strategy("Fib Strategy (visual) v4.1", overlay=true,
+strategy("Fib Strategy (visual) v4.2", overlay=true,
      initial_capital=10000, default_qty_type=strategy.percent_of_equity,
      default_qty_value=100, commission_type=strategy.commission.percent,
      commission_value=0.05, slippage=2, pyramiding=0,
      max_lines_count=500, max_labels_count=100)
 
 // ---------------- inputs ----------------
-prd      = input.int(5,      "Pivot Period", minval=2, tooltip="A pivot confirms `prd` bars after it prints. 5 = high-win profile (more, faster setups); 8 = the v3 expectancy profile.")
-entryFib = input.float(0.55,  "Entry retracement level", minval=0.1, maxval=0.9, step=0.01, tooltip="0.55 = high-win profile (deep pullback, quick 0.786 target). 0.382 = the v3 expectancy profile (0.318-0.5 all profitable there).")
-stopBuf  = input.float(0.8,   "Stop buffer (x range beyond anchor 0)", minval=0.0, step=0.01, tooltip="0.8 = high-win profile: a WIDE stop that only rare full breakdowns hit (~1 stop per 7 trades in test). 0.05 = the v3 expectancy profile. Risk-based sizing keeps a stop-out at ~riskPct either way.")
+prd      = input.int(8,      "Pivot Period", minval=2, tooltip="A pivot confirms `prd` bars after it prints. 8 = v4.2 default (bigger, cleaner swings; passed QQQ + 498-ticker validation). 5 trades more often but failed the QQQ bear-inclusive test.")
+entryFib = input.float(0.5,   "Entry retracement level", minval=0.1, maxval=0.9, step=0.01, tooltip="0.5 = v4.2 default (deep pullback, quick 0.786 target; 0.5-0.55 both pass). 0.382 = the v3 expectancy profile.")
+stopBuf  = input.float(1.2,   "Stop buffer (x range beyond anchor 0)", minval=0.0, step=0.01, tooltip="1.2 = v4.2 default: a DISASTER-only stop (~1 hit per 10 trades); routine losers are cut by the max-hold time exit at a fraction of -1R instead. 0.8 failed the QQQ test - do not tighten this without re-testing. 0.05 = the v3 expectancy profile. Risk-based sizing keeps a stop-out at ~riskPct either way.")
 tgtFib   = input.float(0.786, "Target (fib units)", options=[0.618, 0.7, 0.786, 1.0, 1.272, 1.618], tooltip="Fixed-bracket target. 0.786 = high-win profile (quick partial retrace of the swing). 1.0 = the v3 expectancy profile. IGNORED while the trailing stop is ON - the trail uses its own runner target (Power group).")
 useLong  = input.bool(true,   "Take longs")
 useShort = input.bool(false,  "Take shorts", tooltip="Lost on all 18 test tickers, but the sample was bull-only - see header. Gate with the regime filter and test on bear data first.")
@@ -561,7 +584,7 @@ if show45 and barstate.islast
 // ---------------- legend ----------------
 var table lg = table.new(position.top_right, 1, 4, border_width=1)
 if barstate.islast
-    table.cell(lg, 0, 0, "Fib Strategy v4.1", bgcolor=color.gray, text_color=color.white, text_size=size.small)
+    table.cell(lg, 0, 0, "Fib Strategy v4.2", bgcolor=color.gray, text_color=color.white, text_size=size.small)
     table.cell(lg, 0, 1, "yellow = entry", text_color=color.yellow, text_size=size.tiny)
     table.cell(lg, 0, 2, "green = target",  text_color=color.green,  text_size=size.tiny)
     table.cell(lg, 0, 3, "red = stop",      text_color=color.red,    text_size=size.tiny)

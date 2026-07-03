@@ -1,4 +1,4 @@
-# Fib Strategy (visual) v4.1
+# Fib Strategy (visual) v4.2
 
 A TradingView Pine Script (v5) swing strategy that buys deep pullbacks to a
 Fibonacci retracement of a confirmed pivot swing, with evidence-based defaults.
@@ -9,7 +9,7 @@ TradingView Pine editor and add it to a chart.
 ## What it does
 
 - Detects confirmed swing lows/highs (`ta.pivothigh` / `ta.pivotlow`) and arms a
-  **limit entry at the 0.55 retracement** of the swing, takes profit quickly at
+  **limit entry at the 0.5 retracement** of the swing, takes profit quickly at
   the **0.786 level**, with a wide stop parked beyond the swing anchor.
 - Filters: 200-SMA regime (longs only above it), swing-size bounds, optional
   volume / impulse-slope / reward:risk gates.
@@ -17,43 +17,44 @@ TradingView Pine editor and add it to a chart.
 - Visuals: the latest setup's entry/stop/target lines, swing zig-zag, live
   stop line, volume highlighting, and a stats table with R-multiple expectancy.
 
-## Evidence behind the defaults (v4.1 high-win profile)
+## Evidence behind the defaults (v4.2)
 
-Offline backtest of a faithful Python port of this exact logic
-([`backtest/`](backtest/)) on **10 US large-caps, one per GICS sector**
-(AAPL, JPM, JNJ, XOM, PG, HD, CAT, NEE, DIS, AMT), real daily OHLCV
-Feb 2013 – Feb 2018, 0.05%/side commission + 2-tick slippage on stop fills.
-Parameters were chosen on 5 dev tickers and validated on 5 untouched holdout
-tickers:
+A live TradingView run of v4.1 on QQQ exposed a flaw: 79.8% win rate but
+profit factor 1.04 — with avg win +0.25R vs avg loss −1R, breakeven needs
+exactly 80% wins. v4.2 was re-derived the hard way: **QQQ 1999–2019 (including
+the dot-com and 2008 bears) as the dev set**, required to also pass the
+10-sector-stock dev/holdout splits and a conservative-fill stress test, then
+validated once on the full S&P 500 universe (498 tickers never used in
+selection). All tests use a faithful Python port of this exact logic
+([`backtest/`](backtest/)) with commission and stop-fill slippage.
 
-| Split | Trades | Win rate | Profit factor |
+| Test set | Trades | Win rate | Profit factor |
 |---|---|---|---|
-| dev (AAPL JNJ XOM CAT DIS) | 87 | **84.9%** | 2.13 |
-| holdout (JPM PG HD NEE AMT) | 101 | **81.4%** | 1.55 |
-| **all 10** | **188** | **83.0%** | **1.79** (avg +0.13R) |
+| QQQ 1999–2019 (2 bear markets) | 53 | **88.7%** | 1.84 (stress 1.42) |
+| 10 sector stocks 2013–2018 | 136 | **84.6%** | 1.78 |
+| full S&P 500 universe (498 tickers) | 7,447 | **83.8%** | 1.54 |
 
-9 of 10 tickers ≥ ~74% win rate; exits: 154 targets / 28 stops / 6 time;
-max losing streak 2. Every neighboring parameter combo (entry 0.5–0.618,
-target 0.7–0.786, stop buffer 0.65–0.8, hold 60–80) also passed win ≥ 75%
-and PF ≥ 1 on **both** splits — a plateau, not a lucky spike.
+83% of the 498 tickers individually clear a 75% win rate; 73% have PF > 1.
 
-**The trade-off:** the high win rate is bought with reward:risk ≈ 0.17 —
-winners are small and a rare stop-out costs ~8 wins. Keep risk-based sizing on.
-The earlier v3 "expectancy profile" (~40% win, bigger R, PF ~2.0–2.6) is one
-settings flip away and documented in the script header.
+**Why it works:** entries are deep pullbacks (0.5 fib) with a quick 0.786
+target; the stop (1.2×range beyond the anchor) is a *disaster stop* hit about
+once per 10 trades, and routine losers are cut by the max-hold time exit at a
+fraction of −1R. Expect ~3–8 setups per year per symbol — patience, not
+scalping. Keep risk-based sizing on: the wide stop means a naive fixed-size
+position would be far too large.
 
-**Known limits:** bull-market-only sample (no 2020/2022), modest n, and the
-Python fill engine approximates TradingView's (conservative stop-first on
-ambiguous bars). Re-verify in TradingView's own strategy tester before trading.
+**Known limits:** no 2020/2022 data in any set; the fill engine approximates
+TradingView's (conservative stop-first on ambiguous bars). Re-verify in
+TradingView's own strategy tester before trading.
 
 ## Reproducing the backtest
 
 ```bash
 cd backtest
 curl -LO https://raw.githubusercontent.com/plotly/datasets/master/all_stocks_5yr.csv
-python3 backtest.py all_stocks_5yr.csv   # v4.1 defaults on the 10 tickers
-python3 search.py                        # coarse grid search (dev gate)
-python3 refine.py                        # fine grid + dev/holdout gate + detail
+curl -o QQQ.csv https://raw.githubusercontent.com/nateGeorge/simulate_leveraged_ETFs/master/eod_data/QQQ.csv
+python3 backtest.py all_stocks_5yr.csv   # shipped defaults on the 10 tickers
+python3 search_qqq.py                    # QQQ-dev search + stock-split validation
 ```
 
 Full changelog and per-parameter rationale are in the header comments of the

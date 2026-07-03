@@ -28,6 +28,15 @@ def load(path, tickers):
                     pass  # rare NA rows in this dataset
     return data
 
+def load_adj(path):
+    """Load a single-ticker CSV with Adj_Open/Adj_High/Adj_Low/Adj_Close/Adj_Volume."""
+    out = []
+    with open(path) as f:
+        for row in csv.DictReader(f):
+            out.append((row["Date"], float(row["Adj_Open"]), float(row["Adj_High"]),
+                        float(row["Adj_Low"]), float(row["Adj_Close"]), float(row["Adj_Volume"])))
+    return out
+
 def sma(vals, n):
     out = [None]*len(vals); s = 0.0
     for i, v in enumerate(vals):
@@ -38,13 +47,15 @@ def sma(vals, n):
 
 class Cfg:
     def __init__(self, **kw):
-        # v4.1 high-win profile defaults (mirror fib_strategy_v4.pine)
-        self.prd=5; self.entryFib=0.55; self.stopBuf=0.8; self.tgtFib=0.786
+        # v4.2 defaults (mirror fib_strategy_v4.pine)
+        self.prd=8; self.entryFib=0.5; self.stopBuf=1.2; self.tgtFib=0.786
         self.minRange=0.04; self.maxRange=1.50; self.entryWin=30; self.maxHold=80
         self.trail=False; self.runnerFib=1.618
         self.useRegime=True; self.regimeLen=200
         self.useVol=False; self.volLen=20; self.volMult=1.3
         self.cancelAtTgt=False; self.lockBracket=True
+        self.breakExit=False   # exit next open if a bar CLOSES below the swing anchor
+        self.consFill=False    # pessimistic: limit entries fill at the level, never better
         for k,v in kw.items():
             assert hasattr(self,k), k
             setattr(self,k,v)
@@ -64,7 +75,7 @@ def run_ticker(bars, cfg):
     # pending entry
     pend=None   # dict(e,s,tgt,a0,rng,placedBar)
     pos=None    # dict(entry,stop,tgt,a0,rng,riskPS,entryBar,runnerTgt)
-    closeNext=False
+    closeNext=None   # exit-at-next-open reason ('time'/'break') or None
     trades=[]
 
     def close_trade(exit_px, bar_i, reason, stopfill):
@@ -78,8 +89,8 @@ def run_ticker(bars, cfg):
     for t in range(1, n):
         # ---- 1) broker emulator: execute orders configured at end of t-1 ----
         if pos is not None:
-            if closeNext:                       # maxHold close_all at next open
-                close_trade(o[t], t, "time", False); pos=None; closeNext=False
+            if closeNext is not None:           # scheduled market exit at next open
+                close_trade(o[t], t, closeNext, False); pos=None; closeNext=None
             else:
                 stop, tgt = pos["stop"], pos["tgt"]
                 if o[t] <= stop:   close_trade(o[t], t, "stop", True);  pos=None
@@ -88,7 +99,7 @@ def run_ticker(bars, cfg):
                 elif h[t] >= tgt:  close_trade(tgt, t, "target", False); pos=None
         elif pend is not None and t > pend["placedBar"]:
             fill = None
-            if o[t] <= pend["e"]: fill = o[t]
+            if o[t] <= pend["e"]: fill = pend["e"] if cfg.consFill else o[t]
             elif l[t] <= pend["e"]: fill = pend["e"]
             if fill is not None:
                 pos = dict(entry=fill, stop=pend["s"],
@@ -149,9 +160,12 @@ def run_ticker(bars, cfg):
             elif h[t] >= l618: cs = max(cs, be)
             pos["stop"] = cs
 
+        # structure break: bar CLOSED below the fib-0 anchor -> get out next open
+        if pos is not None and cfg.breakExit and c[t] < pos["a0"]:
+            closeNext = "break"
         # maxHold
         if pos is not None and (t - pos["entryBar"]) >= cfg.maxHold:
-            closeNext = True
+            closeNext = "time" 
 
     return trades
 
@@ -179,7 +193,7 @@ if __name__ == "__main__":
     data = load(sys.argv[1] if len(sys.argv) > 1 else "all_stocks_5yr.csv", TICKERS)
     cfg = Cfg()  # v4 defaults
     tot, per, _ = run_all(data, cfg, TICKERS)
-    print("v4.1 DEFAULTS (high-win profile):")
+    print("v4.2 DEFAULTS:")
     print(f"  ALL: n={tot['n']} win={tot['win']:.1f}% PF={tot['pf']:.2f} avgR={tot['avgR']:+.2f}")
     for t in TICKERS:
         p = per[t]
