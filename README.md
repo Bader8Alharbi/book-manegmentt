@@ -1,4 +1,4 @@
-# Fib Strategy (visual) v4.2
+# Fib Strategy (visual) v4.3
 
 A TradingView Pine Script (v5) swing strategy that buys deep pullbacks to a
 Fibonacci retracement of a confirmed pivot swing, with evidence-based defaults.
@@ -9,8 +9,18 @@ TradingView Pine editor and add it to a chart.
 ## What it does
 
 - Detects confirmed swing lows/highs (`ta.pivothigh` / `ta.pivotlow`) and arms a
-  **limit entry at the 0.5 retracement** of the swing, takes profit quickly at
-  the **0.786 level**, with a wide stop parked beyond the swing anchor.
+  limit entry on the pullback into the swing, with a bracket stop/target.
+- **A Preset dropdown selects a whole vetted profile** (the raw inputs apply
+  only when Preset = Custom):
+
+| Preset | Geometry | Evidence (win rate / PF) |
+|---|---|---|
+| **High win rate** (default) | entry 0.5, target 0.786, disaster stop 1.2×range | QQQ 88.7%/1.84 · 10 stocks 84.6%/1.78 · 498-ticker pool 83.8%/1.54 |
+| **Balanced (classic levels)** | entry 0.618, target = prior high, stop 0.3×range under the swing low | QQQ 77.5%/1.71 · stocks dev 71.1%/1.89 · holdout 68.4%/1.42 |
+| **Trend runner (v3)** | entry 0.382, tight 0.05 stop, trails to 1.618 | ~40% win, PF ~2.0–2.6 on the stock splits |
+
+Win rate, target size and stop distance are a pick-two triangle — the presets
+are three defensible corners of it, not three free lunches.
 - Filters: 200-SMA regime (longs only above it), swing-size bounds, optional
   volume / impulse-slope / reward:risk gates.
 - Risk-based position sizing (~1% of equity per stop-out by default).
@@ -55,6 +65,7 @@ curl -LO https://raw.githubusercontent.com/plotly/datasets/master/all_stocks_5yr
 curl -o QQQ.csv https://raw.githubusercontent.com/nateGeorge/simulate_leveraged_ETFs/master/eod_data/QQQ.csv
 python3 backtest.py all_stocks_5yr.csv   # shipped defaults on the 10 tickers
 python3 search_qqq.py                    # QQQ-dev search + stock-split validation
+python3 search_classic.py                # classic-geometry search (Balanced preset)
 ```
 
 Full changelog and per-parameter rationale are in the header comments of the

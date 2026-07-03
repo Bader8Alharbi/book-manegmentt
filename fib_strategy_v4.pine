@@ -1,7 +1,25 @@
 //@version=5
-// Fib Strategy — VISUAL v4.2 (evidence-based defaults). Draws ONLY the latest setup:
+// Fib Strategy — VISUAL v4.3 (evidence-based presets). Draws ONLY the latest setup:
 //   yellow = entry   green = target   red dashed = stop   solid red steps = live trailing stop
 //
+// ---- CHANGELOG v4.3: PRESETS ------------------------------------------------
+//  One dropdown now selects a whole vetted profile (the individual inputs
+//  below only apply when Preset = Custom). Win rate, target size and stop
+//  distance are a pick-two triangle - each preset picks differently:
+//  * HIGH WIN RATE (default, the v4.2 evidence): prd=8, entry 0.5,
+//    target 0.786, stop 1.2x range (disaster-only), maxHold 80.
+//      QQQ 88.7%/PF 1.84 | 10 stocks 84.6%/1.78 | 498-ticker pool 83.8%/1.54
+//    Wins are SMALL and the stop is FAR - that is what >=75% win costs.
+//  * BALANCED (classic levels): prd=13, entry 0.618, target 1.0 (the prior
+//    swing high), stop only 0.3x range beyond the swing low, maxHold 80.
+//      QQQ 77.5%/PF 1.71 (+0.16R avg) | stocks dev 71.1%/1.89 | holdout 68.4%/1.42
+//    Proper-looking geometry (RR ~0.42, ~3x the R of high-win), but the win
+//    rate can NOT hold 75% everywhere - do not expect both.
+//  * TREND RUNNER (v3): prd=8, entry 0.382, trail to 1.618, tight 0.05 stop,
+//    volume filter on. ~40% win, PF ~2.0-2.6 on the stock splits - few big
+//    winners, many small stop-outs. For traders who want fat R, not win rate.
+//  All three profiles were tested on QQQ 1999-2019 + the 10-stock splits with
+//  the same harness; see backtest/search_classic.py for the Balanced search.
 // ---- CHANGELOG v4.2 (offline backtest #3: fixing the v4.1 QQQ failure) -----
 //  A live run of v4.1 on QQQ daily showed the flaw: win rate 79.8% (held!)
 //  but PF 1.04 - breakeven. Diagnosis: with avg win +0.25R vs avg loss -1R,
@@ -109,13 +127,16 @@
 // ---- CHANGELOG v2: alerts, stats table, date filter, scale-out, ATR stop ----
 // ---- CHANGELOG v1: entry-type toggle, opposite-order cancel, cooldown ------
 // ---------------------------------------------------------------------------
-strategy("Fib Strategy (visual) v4.2", overlay=true,
+strategy("Fib Strategy (visual) v4.3", overlay=true,
      initial_capital=10000, default_qty_type=strategy.percent_of_equity,
      default_qty_value=100, commission_type=strategy.commission.percent,
      commission_value=0.05, slippage=2, pyramiding=0,
      max_lines_count=500, max_labels_count=100)
 
 // ---------------- inputs ----------------
+preset   = input.string("High win rate (v4.2)", "Preset",
+     options=["High win rate (v4.2)", "Balanced (classic levels)", "Trend runner (v3)", "Custom (use inputs below)"],
+     tooltip="One vetted profile per style - see the header for the evidence. HIGH WIN: ~84-89% winners but small targets and a far disaster-stop. BALANCED: classic geometry (entry 0.618, target = prior high, stop snug under the swing low), ~68-78% winners, ~3x bigger R. TREND RUNNER: ~40% winners, big R, trails to 1.618. Custom unlocks the raw inputs below.")
 prd      = input.int(8,      "Pivot Period", minval=2, tooltip="A pivot confirms `prd` bars after it prints. 8 = v4.2 default (bigger, cleaner swings; passed QQQ + 498-ticker validation). 5 trades more often but failed the QQQ bear-inclusive test.")
 entryFib = input.float(0.5,   "Entry retracement level", minval=0.1, maxval=0.9, step=0.01, tooltip="0.5 = v4.2 default (deep pullback, quick 0.786 target; 0.5-0.55 both pass). 0.382 = the v3 expectancy profile.")
 stopBuf  = input.float(1.2,   "Stop buffer (x range beyond anchor 0)", minval=0.0, step=0.01, tooltip="1.2 = v4.2 default: a DISASTER-only stop (~1 hit per 10 trades); routine losers are cut by the max-hold time exit at a fraction of -1R instead. 0.8 failed the QQQ test - do not tighten this without re-testing. 0.05 = the v3 expectancy profile. Risk-based sizing keeps a stop-out at ~riskPct either way.")
@@ -195,6 +216,19 @@ slope45  = input.float(1.0,  "Steepness (1.0 = reach the opposite extreme at the
 upCol45  = input.color(color.aqua,    "Rising line (from lowest low)", group="45-degree line")
 dnCol45  = input.color(color.fuchsia, "Falling line (from highest high)", group="45-degree line")
 
+// ---- resolve the preset into effective parameters (Custom = raw inputs) ----
+isHW  = preset == "High win rate (v4.2)"
+isBal = preset == "Balanced (classic levels)"
+isTR  = preset == "Trend runner (v3)"
+prdE      = isHW ? 8     : isBal ? 13    : isTR ? 8     : prd
+entryFibE = isHW ? 0.5   : isBal ? 0.618 : isTR ? 0.382 : entryFib
+stopBufE  = isHW ? 1.2   : isBal ? 0.3   : isTR ? 0.05  : stopBuf
+tgtFibE   = isHW ? 0.786 : isBal ? 1.0   : isTR ? 1.0   : tgtFib
+trailE    = isHW ? false : isBal ? false : isTR ? true  : trailStop
+useVolE   = isHW ? false : isBal ? false : isTR ? true  : useVol
+volMultE  = isTR ? 1.3 : volMult
+maxHoldE  = isHW ? 80    : isBal ? 80    : isTR ? 60    : maxHold
+
 // regime SMA - on the chart TF (blank input, v3 behavior) or a higher one.
 // lookahead_off: on a HTF the last CONFIRMED HTF value is used - no repaint.
 regimeSma = request.security(syminfo.tickerid, regimeTf, ta.sma(close, regimeLen), lookahead=barmerge.lookahead_off)
@@ -217,23 +251,23 @@ f_alert(string ev, string msg) =>
         alert(payload, alert.freq_once_per_bar)
 
 // ---------------- pivots (confirmed prd bars back) -------------------------
-ph = ta.pivothigh(high, prd, prd)
-pl = ta.pivotlow(low,  prd, prd)
+ph = ta.pivothigh(high, prdE, prdE)
+pl = ta.pivotlow(low,  prdE, prdE)
 var float phPrice = na
 var int   phBar   = na
 var float plPrice = na
 var int   plBar   = na
 avgVol = ta.sma(volume, volLen)
-pivRelVol = na(avgVol[prd]) or avgVol[prd] == 0 ? na : volume[prd] / avgVol[prd]
+pivRelVol = na(avgVol[prdE]) or avgVol[prdE] == 0 ? na : volume[prdE] / avgVol[prdE]
 var float phVol = na
 var float plVol = na
 if not na(ph)
     phPrice := ph
-    phBar   := bar_index - prd
+    phBar   := bar_index - prdE
     phVol   := pivRelVol
 if not na(pl)
     plPrice := pl
-    plBar   := bar_index - prd
+    plBar   := bar_index - prdE
     plVol   := pivRelVol
 
 // ---- highlight HIGH-volume bars in blue ----
@@ -252,7 +286,7 @@ var bool  zzH1 = na
 var line  zzSeg = na
 var line[] zzPerm = array.new_line()
 if showZZ and not na(ph)
-    bb = bar_index - prd
+    bb = bar_index - prdE
     if na(zzP1)
         zzP1 := ph
         zzB1 := bb
@@ -275,7 +309,7 @@ if showZZ and not na(ph)
     if array.size(zzPerm) > 150
         line.delete(array.shift(zzPerm))
 if showZZ and not na(pl)
-    bb = bar_index - prd
+    bb = bar_index - prdE
     if na(zzP1)
         zzP1 := pl
         zzB1 := bb
@@ -384,9 +418,9 @@ if strategy.closedtrades > procTrades
 // directions because the sign of rng carries the direction.
 f_setupCalc(bool isLong, float a0, float a1, int aBar, float aVol) =>
     rng   = a1 - a0
-    e     = a0 + entryFib * rng
-    s     = useAtrStop ? e + (isLong ? -1.0 : 1.0) * atrStopMult * atrA : a0 - stopBuf * rng
-    t     = a0 + tgtFib * rng
+    e     = a0 + entryFibE * rng
+    s     = useAtrStop ? e + (isLong ? -1.0 : 1.0) * atrStopMult * atrA : a0 - stopBufE * rng
+    t     = a0 + tgtFibE * rng
     valid = not na(s) and (isLong ? e > s : s > e)
     rr    = valid ? math.abs(t - e) / math.abs(e - s) : 0.0
     ang   = (bar_index > aBar and atrA > 0) ? math.abs(close - a0) / (atrA * (bar_index - aBar)) : 0.0
@@ -394,7 +428,7 @@ f_setupCalc(bool isLong, float a0, float a1, int aBar, float aVol) =>
     sizeOk = relSz >= minRange and relSz <= maxRange
     rrOk   = not useRR or rr >= minRR
     regOk  = not useRegime or (isLong ? bullRegime : bearRegime)
-    volOk  = not useVol or (not na(aVol) and aVol >= volMult)
+    volOk  = not useVolE or (not na(aVol) and aVol >= volMultE)
     angOk  = not useAngle or ang >= minAngle
     gateOk = not inCooldown and (strategy.position_size == 0 or not lockBracket)
     ok = valid and inRange and sizeOk and rrOk and regOk and volOk and angOk and gateOk
@@ -411,7 +445,7 @@ f_place(bool isLong, float e, float s, float t, float a0, float rng) =>
         strategy.exit(id + "x1", id, qty_percent=partialPct, stop=s, limit=t)
         strategy.exit(id + "x2", id, stop=s, limit=runnerTgt)
     else
-        strategy.exit(id + "x", id, stop=s, limit=trailStop ? runnerTgt : t)
+        strategy.exit(id + "x", id, stop=s, limit=trailE ? runnerTgt : t)
 
 // ---------------- LONG setup: fresh low + a prior high above it -------------
 if useLong and not na(pl) and not na(phPrice) and phBar < plBar and phPrice > plPrice
@@ -467,7 +501,7 @@ if pendingFlat and not useLimit and stopInvalidate and not na(curStop)
         f_alert("cancel", "Fib setup INVALIDATED on " + syminfo.ticker + " - stop level traded before entry")
 // Limit mode (optional): the move completed without the pullback - edge spent.
 if pendingFlat and useLimit and cancelAtTgt and not na(tA0)
-    if tLong ? high >= tA0 + tgtFib * tRng : low <= tA0 + tgtFib * tRng
+    if tLong ? high >= tA0 + tgtFibE * tRng : low <= tA0 + tgtFibE * tRng
         strategy.cancel(tLong ? "L" : "S")
         pendBar := na
         f_alert("cancel", "Fib setup EXPIRED on " + syminfo.ticker + " - target tagged before the pullback filled")
@@ -484,7 +518,7 @@ if newSetup and showDraw
     label.delete(lbT)
     label.delete(lbH)
     label.delete(lbL)
-    rightX = bar_index + entryWin + maxHold
+    rightX = bar_index + entryWin + maxHoldE
     c = nLong ? color.green : color.red
     bx  := box.new(bar_index, math.max(nA0, nA1), rightX, math.min(nA0, nA1),
              border_color=color.new(color.gray, 50), bgcolor=color.new(c, 90))
@@ -515,8 +549,8 @@ if strategy.position_size != 0 and not na(tA0)
     l100 = tA0 + 1.0   * tRng
     l127 = tA0 + 1.272 * tRng
     runnerTgt = tA0 + runnerFib * tRng
-    fixedTgt  = tA0 + tgtFib   * tRng
-    if trailStop
+    fixedTgt  = tA0 + tgtFibE  * tRng
+    if trailE
         if tLong
             curStop := high >= l127 ? math.max(curStop, l100) : high >= l100 ? math.max(curStop, l618) : high >= l618 ? math.max(curStop, be) : curStop
         else
@@ -526,8 +560,8 @@ if strategy.position_size != 0 and not na(tA0)
             curStop := math.max(curStop, be)
         if not tLong and low <= be - beTrig * tRiskPS
             curStop := math.min(curStop, be)
-    if trailStop or useBE
-        tgtSingle = trailStop ? runnerTgt : fixedTgt
+    if trailE or useBE
+        tgtSingle = trailE ? runnerTgt : fixedTgt
         if tLong
             if usePartial
                 strategy.exit("Lx2", "L", stop=curStop, limit=runnerTgt)
@@ -550,7 +584,7 @@ if strategy.position_size != 0 and na(entryBar)
     entryBar := bar_index
 if strategy.position_size == 0
     entryBar := na
-if not na(entryBar) and (bar_index - entryBar) >= maxHold
+if not na(entryBar) and (bar_index - entryBar) >= maxHoldE
     strategy.close_all(comment="time")
 
 // ---- live overlays: the ratcheting stop while in a trade + the regime SMA ----
@@ -584,7 +618,7 @@ if show45 and barstate.islast
 // ---------------- legend ----------------
 var table lg = table.new(position.top_right, 1, 4, border_width=1)
 if barstate.islast
-    table.cell(lg, 0, 0, "Fib Strategy v4.2", bgcolor=color.gray, text_color=color.white, text_size=size.small)
+    table.cell(lg, 0, 0, "Fib Strategy v4.3", bgcolor=color.gray, text_color=color.white, text_size=size.small)
     table.cell(lg, 0, 1, "yellow = entry", text_color=color.yellow, text_size=size.tiny)
     table.cell(lg, 0, 2, "green = target",  text_color=color.green,  text_size=size.tiny)
     table.cell(lg, 0, 3, "red = stop",      text_color=color.red,    text_size=size.tiny)
