@@ -13,6 +13,10 @@ retracements of confirmed pivot swings.
   PF 0.86 to 1.40) and the **regime filter is on** (PF 1.40 → 1.71). Tuned:
   **QQQ 1999–2019 PF 1.76 (+0.34R avg)**, stocks dev PF 1.88 / holdout 1.34.
   Win rate is ~25–30% by design: a few 1.618 runners pay for many small stops.
+  A second 1,000-variant search (runner target, entry window, stops, pivot
+  period, regime length) found nothing that beat these defaults on the full
+  498-ticker universe — they are confirmed robust. QQQ-only traders can set
+  Regime SMA length to 150 (QQQ PF 2.11 historically, but QQQ-fitted).
   The old behavior is one input away (Entry order type = Stop; shorts inputs
   kept, default off).
 - **[`fib_strategy_v4.pine`](fib_strategy_v4.pine)** — the researched rewrite
@@ -68,6 +72,7 @@ python3 backtest.py all_stocks_5yr.csv   # shipped defaults on the 10 tickers
 python3 search_qqq.py                    # QQQ-dev search + stock-split validation
 python3 search_classic.py                # classic-geometry search (Balanced preset)
 python3 search_old.py                    # original-strategy tuning (fib_strategy.pine)
+python3 enhance_old.py                   # round-2 search + universe arbitration
 ```
 
 Full changelog and per-parameter rationale are in the header comments of the

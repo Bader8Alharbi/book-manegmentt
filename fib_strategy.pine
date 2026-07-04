@@ -17,7 +17,15 @@
 //  Result, same geometry (tight 0.05 stop, trail to 1.618, ~25-30% win rate,
 //  few big runners pay for many small stops):
 //    QQQ 1999-2019: PF 1.76, avg +0.34R | stocks dev PF 1.88 | holdout PF 1.34
-//  Reproduce: see backtest/ (search_old.py).
+//  ROUND 2 (1,000+ variants: runner target, entry window, fine stops, pivot
+//  period, regime length, move-gone cancel) found NOTHING that beat these
+//  defaults on the broadest test - all 498 S&P tickers, never used to pick
+//  parameters (current: pooled PF 1.21; every challenger 1.15-1.19). The
+//  defaults are confirmed robust, not stale. One instrument-specific note:
+//  on QQQ alone, Regime SMA length 150 historically beat 200 (PF 2.11 vs
+//  1.76; stress-fill 1.42) but was slightly worse across the universe -
+//  flip that one input if you trade only QQQ, knowing it's QQQ-fitted.
+//  Reproduce: see backtest/ (search_old.py, enhance_old.py).
 strategy("Fib Strategy (visual)", overlay=true,
      initial_capital=10000, default_qty_type=strategy.percent_of_equity,
      default_qty_value=100, commission_type=strategy.commission.percent,
