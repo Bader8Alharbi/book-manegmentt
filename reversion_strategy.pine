@@ -1,0 +1,107 @@
+//@version=5
+// UPTREND REVERSION (RSI-2) — the final, simple strategy this project converged on.
+//
+// After ~15,000 backtested configurations of the fib-pullback family, one core
+// carried ALL the profit in every variant: buy short-term weakness inside a
+// long-term uptrend, exit into strength, stand aside in bear markets. This
+// script trades that core directly (the classic index mean-reversion effect,
+// documented since the 2000s) with nothing else on top.
+//
+// RULES (long only, daily bars):
+//   * Trend filter: close > 200-SMA (stand aside in bear markets)
+//   * Entry: RSI(2) closes below 5  -> buy next open
+//   * Exit:  RSI(2) closes above 80, or 20 bars in trade -> sell next open
+//   * No stop by default: stops measurably HURT this style (you are buying a
+//     dip - a stop sells the bottom). An optional ATR disaster stop exists
+//     for peace of mind; it costs performance. Size accordingly instead.
+//
+// EVIDENCE (Python port, next-open fills, 0.05%/side + slippage):
+//   QQQ 1999-2019 (dot-com AND 2008 bears): 78 trades, 75.6% win, PF 3.29,
+//     avg +1.24%/trade, max cum drawdown ~10% (per-trade sum basis)
+//   10 US large-caps, one per GICS sector (holdout): 70.7% win, PF 1.93
+//   Full S&P 500 universe, 497 tickers (validation): 67.2% win, PF 1.53,
+//   Neighboring parameters (buy < 5-15, sell > 60-85, hold 10-20) all profit
+//   on QQQ - a plateau, not a spike. The >=75% win goal holds on QQQ; expect
+//   ~70% on noisier single stocks. Reproduce: backtest/mr.py
+//
+// KNOWN LIMITS: data ends 2019 (verify 2020-2026 right here in the TradingView
+// tester); works on liquid indices/large-caps, weaker on illiquid names; the
+// average trade is ~1%, so commissions matter - keep them low.
+strategy("Uptrend Reversion (RSI-2)", overlay=true,
+     initial_capital=10000, default_qty_type=strategy.percent_of_equity,
+     default_qty_value=100, commission_type=strategy.commission.percent,
+     commission_value=0.05, slippage=2, pyramiding=0)
+
+// ---------------- inputs ----------------
+smaLen    = input.int(200,  "Trend SMA length", minval=20)
+rsiLen    = input.int(2,    "RSI length", minval=1)
+buyBelow  = input.float(5,  "Buy when RSI closes below", minval=1, maxval=50, tooltip="5 = tested default (highest PF). 10-15 trade more often with a bit less edge per trade - all profitable in test.")
+sellAbove = input.float(80, "Exit when RSI closes above", minval=50, maxval=99, tooltip="80 = tested default (rides the bounce further; QQQ 75.6% win / PF 3.29). 70 exits sooner with slightly lower PF.")
+maxHold   = input.int(20,   "Max bars to hold", minval=1, tooltip="Time exit if the bounce never comes. 20 = tested default.")
+useStop   = input.bool(false, "ATR disaster stop", tooltip="OFF is the tested default - a stop sells the dip at its worst and cost performance in every test of this style. Turn on only if you cannot tolerate open drawdown, and expect a lower PF.")
+stopMult  = input.float(3.0, "ATR stop multiple", minval=1.0, step=0.5)
+useAlerts = input.bool(true, "Fire alert() on buy / exit signals")
+showStats = input.bool(true, "Show performance stats table")
+showSma   = input.bool(true, "Plot the trend SMA")
+
+// ---------------- logic ----------------
+smaT = ta.sma(close, smaLen)
+r    = ta.rsi(close, rsiLen)
+atrV = ta.atr(14)
+
+var int   entBar = na
+var float stopPx = na
+inPos = strategy.position_size > 0
+
+// track entry bar & freeze the optional stop at fill
+justOpened = inPos and strategy.position_size[1] == 0
+if justOpened
+    entBar := bar_index
+    stopPx := strategy.position_avg_price - stopMult * atrV
+if not inPos
+    entBar := na
+    stopPx := na
+
+buySig = not inPos and close > smaT and r < buyBelow
+if buySig
+    strategy.entry("L", strategy.long)
+    if useAlerts
+        alert("Reversion BUY signal on " + syminfo.ticker + " (RSI" + str.tostring(rsiLen) + "=" + str.tostring(r, "#.#") + ", closes " + str.tostring(close, format.mintick) + ")", alert.freq_once_per_bar)
+
+rsiExit  = inPos and r > sellAbove
+timeExit = inPos and not na(entBar) and (bar_index - entBar) >= maxHold
+if rsiExit or timeExit
+    strategy.close("L", comment=rsiExit ? "rsi" : "time")
+    if useAlerts
+        alert("Reversion EXIT signal on " + syminfo.ticker + (rsiExit ? " (strength)" : " (time)"), alert.freq_once_per_bar)
+
+if useStop and inPos and not na(stopPx)
+    strategy.exit("Lx", "L", stop=stopPx)
+
+// ---------------- visuals ----------------
+plot(showSma ? smaT : na, "Trend SMA", color=color.new(color.orange, 40), linewidth=2)
+plotchar(buySig, "Buy signal", "▲", location.belowbar, color.new(color.lime, 0), size=size.tiny)
+plot(useStop and inPos ? stopPx : na, "Disaster stop", color=color.new(color.red, 0), style=plot.style_linebr)
+
+// ---------------- performance stats ----------------
+var table st = table.new(position.bottom_right, 2, 7, border_width=1)
+if showStats and barstate.islast
+    winRate = strategy.closedtrades > 0 ? 100.0 * strategy.wintrades / strategy.closedtrades : na
+    pf      = strategy.grossloss > 0 ? strategy.grossprofit / strategy.grossloss : na
+    netPct  = 100.0 * strategy.netprofit / strategy.initial_capital
+    ddPct   = 100.0 * strategy.max_drawdown / strategy.initial_capital
+    avgT    = strategy.closedtrades > 0 ? strategy.netprofit / strategy.closedtrades : na
+    table.cell(st, 0, 0, "Uptrend Reversion", bgcolor=color.gray, text_color=color.white, text_size=size.small)
+    table.cell(st, 1, 0, "", bgcolor=color.gray, text_size=size.small)
+    table.cell(st, 0, 1, "Closed trades", text_size=size.tiny, text_color=color.white)
+    table.cell(st, 1, 1, str.tostring(strategy.closedtrades), text_size=size.tiny, text_color=color.white)
+    table.cell(st, 0, 2, "Win rate", text_size=size.tiny, text_color=color.white)
+    table.cell(st, 1, 2, na(winRate) ? "-" : str.tostring(winRate, "#.#") + "%", text_size=size.tiny, text_color=color.white)
+    table.cell(st, 0, 3, "Profit factor", text_size=size.tiny, text_color=color.white)
+    table.cell(st, 1, 3, na(pf) ? "-" : str.tostring(pf, "#.##"), text_size=size.tiny, text_color=color.white)
+    table.cell(st, 0, 4, "Net profit", text_size=size.tiny, text_color=color.white)
+    table.cell(st, 1, 4, str.tostring(netPct, "#.#") + "%", text_size=size.tiny, text_color=netPct >= 0 ? color.lime : color.red)
+    table.cell(st, 0, 5, "Max DD (% of initial)", text_size=size.tiny, text_color=color.white)
+    table.cell(st, 1, 5, str.tostring(ddPct, "#.#") + "%", text_size=size.tiny, text_color=color.orange)
+    table.cell(st, 0, 6, "Avg trade", text_size=size.tiny, text_color=color.white)
+    table.cell(st, 1, 6, na(avgT) ? "-" : "$" + str.tostring(avgT, "#.##"), text_size=size.tiny, text_color=color.white)
