@@ -1,0 +1,334 @@
+//@version=5
+// Fib Strategy — VISUAL (decluttered). Same rules as fib_strategy.pine, but it
+// draws ONLY the most recent setup so the chart stays readable:
+//   yellow = entry (0.382)   green = target (1.0)   red dashed = stop
+// Trade arrows (L/S enter, Lx/Sx exit) and $ P&L come from the Strategy Tester.
+// NOTE: default sizing is now RISK-BASED (see "Risk % of equity per trade" input),
+// not 100%-of-equity. default_qty_* below is only a fallback if risk sizing is off.
+strategy("Fib Strategy (visual)", overlay=true,
+     initial_capital=10000, default_qty_type=strategy.percent_of_equity,
+     default_qty_value=100, commission_type=strategy.commission.percent,
+     commission_value=0.05, slippage=2, pyramiding=0,
+     max_lines_count=500, max_labels_count=100)
+
+// ---------------- inputs ----------------
+prd      = input.int(8,     "Pivot Period")  // 8 beat 5 on CAGR *and* drawdown, robust in OOS + ticker-split tests
+entryFib = input.float(0.236, "Entry retracement level")  // 0.236 = best per backtest
+stopBuf  = input.float(0.05, "Stop buffer (x range beyond anchor 0)")
+tgtFib   = input.float(1.0,  "Target (fib units)", options=[1.0, 1.272, 1.618])
+useLong  = input.bool(true,  "Take longs")
+useShort = input.bool(true,  "Take shorts")
+minRange = input.float(0.04, "Min swing size (range/anchor0)")
+maxRange = input.float(1.50, "Max swing size (range/anchor0)")
+entryWin = input.int(30,     "Bars to wait for an entry fill")
+maxHold  = input.int(60,     "Max bars to hold a position")
+showDraw = input.bool(true,  "Draw the latest setup (entry/stop/target)")
+trailStop = input.bool(true, "Trailing stop (ratchet up the Fib levels to 1.618)")
+
+// ---- zig-zag of the swing structure the strategy reads ----
+showZZ   = input.bool(true,        "Draw zig-zag of the pivots used", group="Zig-zag")
+zzUpCol  = input.color(color.lime, "Rising leg (low -> high)", group="Zig-zag")
+zzDnCol  = input.color(color.red,  "Falling leg (high -> low)", group="Zig-zag")
+zzWidth  = input.int(2, "Zig-zag line width", minval=1, maxval=4, group="Zig-zag")
+
+// ---- "smarter" controls (defaults aligned with your backtest research) ----
+useRisk   = input.bool(true,  "Risk-based sizing (size by stop distance, not 100% equity)", group="Smart")
+riskPct   = input.float(1.0,  "Risk % of equity per trade", minval=0.1, maxval=5.0, step=0.1, group="Smart")
+maxExpo   = input.float(100,  "Max position size (% of equity, no-leverage cap)", group="Smart")
+useRR     = input.bool(true,  "Require minimum reward:risk", group="Smart")
+minRR     = input.float(1.5,  "Min reward:risk (target vs stop)", minval=0.5, step=0.1, group="Smart")
+useRegime = input.bool(false, "Regime filter (longs only above SMA, shorts only below)", group="Smart")
+regimeLen = input.int(200,    "Regime SMA length", minval=20, group="Smart")
+// 45-degree breakout: only take setups where price rebounded steeply into entry.
+// slope = |close - anchor| / (ATR x bars-since-anchor) = ATRs per bar. ~0.2-0.3 is
+// the sweet spot in backtest (lifts win rate, holds in time + ticker OOS splits).
+useAngle = input.bool(false, "Require steep '45-deg' impulse into entry", group="Smart")
+minAngle = input.float(0.3,  "Min impulse slope (ATR per bar from anchor)", minval=0.0, step=0.05, group="Smart")
+atrA     = ta.atr(14)
+
+// ---- volume confirmation: the anchor swing must form on real participation ----
+useVol   = input.bool(false, "Require above-average volume at the anchor pivot", group="Volume")
+volLen   = input.int(20,     "Average-volume length", minval=5, group="Volume")
+volMult  = input.float(1.3,  "Anchor volume must be >= this x average", minval=1.0, step=0.1, group="Volume")
+shadeVol = input.bool(true,  "Highlight high-volume bars in blue", group="Volume")
+
+// ---- auto 45-degree trend lines: rise from the lowest low, fall from the highest
+// high, scaled to SPAN the high-low range over the lookback (so they fill the chart
+// like a Gann box, instead of flying off-screen). steepness = `slope45`. ----
+show45   = input.bool(true,  "Draw auto 45-degree trend lines", group="45-degree line")
+look45   = input.int(200,    "Lookback to anchor the high/low", minval=10, group="45-degree line")
+slope45  = input.float(1.0,  "Steepness (1.0 = reach the opposite extreme at the current bar)", minval=0.1, step=0.25, group="45-degree line")
+upCol45  = input.color(color.aqua,    "Rising line (from lowest low)", group="45-degree line")
+dnCol45  = input.color(color.fuchsia, "Falling line (from highest high)", group="45-degree line")
+
+regimeSma = ta.sma(close, regimeLen)
+bullRegime = na(regimeSma) or close > regimeSma
+bearRegime = na(regimeSma) or close < regimeSma
+
+// risk-based qty: size so a stop-out loses ~riskPct of equity; cap at maxExpo
+qtyFor(entryPx, stopPx) =>
+    dist = math.abs(entryPx - stopPx)
+    riskQty = dist > 0 ? (strategy.equity * riskPct / 100) / dist : na
+    capQty  = (strategy.equity * maxExpo / 100) / entryPx
+    useRisk ? math.min(riskQty, capQty) : na
+
+// ---------------- pivots (confirmed prd bars back) -------------------------
+ph = ta.pivothigh(high, prd, prd)
+pl = ta.pivotlow(low,  prd, prd)
+var float phPrice = na
+var int   phBar   = na
+var float plPrice = na
+var int   plBar   = na
+// relative volume AT the pivot bar (pivot is prd bars back) vs its trailing average
+avgVol = ta.sma(volume, volLen)
+pivRelVol = na(avgVol[prd]) or avgVol[prd] == 0 ? na : volume[prd] / avgVol[prd]
+var float phVol = na
+var float plVol = na
+if not na(ph)
+    phPrice := ph
+    phBar   := bar_index - prd
+    phVol   := pivRelVol
+if not na(pl)
+    plPrice := pl
+    plBar   := bar_index - prd
+    plVol   := pivRelVol
+
+// ---- highlight only the HIGH-volume bars in blue; leave the rest as normal candles ----
+curRelVol = na(avgVol) or avgVol == 0 ? na : volume / avgVol
+// only above-average bars get tinted; stronger blue the higher the volume.
+// 1x -> ~62 transp (light blue); 1.5x -> ~40; 2x -> ~17; 2.3x+ -> 0 (solid blue).
+volTransp = math.max(0, math.min(85, 108 - curRelVol * 46))
+isHiVol   = not na(curRelVol) and curRelVol >= 1
+volBarCol = color.new(color.blue, volTransp)
+barcolor(shadeVol and isHiVol ? volBarCol : na, title="Volume highlight")
+
+// ---- zig-zag: connect the confirmed pivots (same `prd`) into a swing line ----
+// zzP0/zzB0 = anchor of the live leg, zzP1/zzB1 = its tip, zzH1 = tip is a high.
+// A same-direction pivot only redraws the tip to the more-extreme price (classic
+// zig-zag), so you see exactly the swing structure the entry logic re-anchors on.
+var float zzP0 = na
+var int   zzB0 = na
+var float zzP1 = na
+var int   zzB1 = na
+var bool  zzH1 = na
+var line  zzSeg = na
+var line[] zzPerm = array.new_line()
+if showZZ and not na(ph)
+    bb = bar_index - prd
+    if na(zzP1)
+        zzP1 := ph
+        zzB1 := bb
+        zzH1 := true
+    else if zzH1
+        if ph > zzP1
+            zzP1 := ph
+            zzB1 := bb
+            if not na(zzSeg)
+                line.set_xy2(zzSeg, zzB1, zzP1)
+    else
+        if not na(zzSeg)
+            array.push(zzPerm, zzSeg)
+        zzP0 := zzP1
+        zzB0 := zzB1
+        zzP1 := ph
+        zzB1 := bb
+        zzH1 := true
+        zzSeg := line.new(zzB0, zzP0, zzB1, zzP1, color=zzUpCol, width=zzWidth)
+    if array.size(zzPerm) > 150
+        line.delete(array.shift(zzPerm))
+if showZZ and not na(pl)
+    bb = bar_index - prd
+    if na(zzP1)
+        zzP1 := pl
+        zzB1 := bb
+        zzH1 := false
+    else if not zzH1
+        if pl < zzP1
+            zzP1 := pl
+            zzB1 := bb
+            if not na(zzSeg)
+                line.set_xy2(zzSeg, zzB1, zzP1)
+    else
+        if not na(zzSeg)
+            array.push(zzPerm, zzSeg)
+        zzP0 := zzP1
+        zzB0 := zzB1
+        zzP1 := pl
+        zzB1 := bb
+        zzH1 := false
+        zzSeg := line.new(zzB0, zzP0, zzB1, zzP1, color=zzDnCol, width=zzWidth)
+    if array.size(zzPerm) > 150
+        line.delete(array.shift(zzPerm))
+
+var int pendBar  = na
+var int entryBar = na
+
+// active-trade anchors for the trailing stop
+var float tA0   = na
+var float tRng  = na
+var bool  tLong = na
+var float curStop = na
+
+// drawing handles — only the latest setup is kept on screen
+var box   bx  = na
+var line  lnE = na
+var line  lnS = na
+var line  lnT = na
+var line  lnSwing = na
+var label lbE = na
+var label lbT = na
+var label lbH = na
+var label lbL = na
+
+// values for a setup detected on this bar (na = none)
+float nE = na
+float nS = na
+float nT = na
+float nA0 = na
+float nA1 = na
+bool  nLong = false
+bool  newSetup = false
+
+// ---------------- LONG setup: fresh low + a prior high above it -------------
+if useLong and not na(pl) and not na(phPrice) and phBar < plBar and phPrice > plPrice
+    a0 = plPrice
+    a1 = phPrice
+    rng = a1 - a0
+    rrL = (a0 + tgtFib * rng - (a0 + entryFib * rng)) / ((a0 + entryFib * rng) - (a0 - stopBuf * rng))
+    angL = (bar_index > plBar and atrA > 0) ? math.abs(close - plPrice) / (atrA * (bar_index - plBar)) : 0.0
+    okL = rng / a0 >= minRange and rng / a0 <= maxRange and (not useRR or rrL >= minRR) and (not useRegime or bullRegime) and (not useVol or (not na(plVol) and plVol >= volMult)) and (not useAngle or angL >= minAngle)
+    if okL
+        nE := a0 + entryFib * rng
+        nS := a0 - stopBuf * rng
+        nT := a0 + tgtFib * rng
+        nA0 := a0
+        nA1 := a1
+        nLong := true
+        newSetup := true
+        qL = qtyFor(nE, nS)
+        strategy.entry("L", strategy.long, qty=qL, stop=nE)
+        strategy.exit("Lx", "L", stop=nS, limit=(trailStop ? a0 + 1.618 * rng : nT))
+        pendBar := bar_index
+        tA0 := a0
+        tRng := rng
+        tLong := true
+        curStop := nS
+
+// ---------------- SHORT setup: mirror --------------------------------------
+if useShort and not na(ph) and not na(plPrice) and plBar < phBar and plPrice < phPrice
+    a0 = phPrice
+    a1 = plPrice
+    rng = a1 - a0
+    rrS = ((a0 + entryFib * rng) - (a0 + tgtFib * rng)) / ((a0 - stopBuf * rng) - (a0 + entryFib * rng))
+    angS = (bar_index > phBar and atrA > 0) ? math.abs(close - phPrice) / (atrA * (bar_index - phBar)) : 0.0
+    okS = math.abs(rng) / a0 >= minRange and math.abs(rng) / a0 <= maxRange and (not useRR or rrS >= minRR) and (not useRegime or bearRegime) and (not useVol or (not na(phVol) and phVol >= volMult)) and (not useAngle or angS >= minAngle)
+    if okS
+        nE := a0 + entryFib * rng
+        nS := a0 - stopBuf * rng
+        nT := a0 + tgtFib * rng
+        nA0 := a0
+        nA1 := a1
+        nLong := false
+        newSetup := true
+        qS = qtyFor(nE, nS)
+        strategy.entry("S", strategy.short, qty=qS, stop=nE)
+        strategy.exit("Sx", "S", stop=nS, limit=(trailStop ? a0 + 1.618 * rng : nT))
+        pendBar := bar_index
+        tA0 := a0
+        tRng := rng
+        tLong := false
+        curStop := nS
+
+// ---- redraw: erase previous setup, draw the new one only ----
+if newSetup and showDraw
+    box.delete(bx)
+    line.delete(lnE)
+    line.delete(lnS)
+    line.delete(lnT)
+    line.delete(lnSwing)
+    label.delete(lbE)
+    label.delete(lbT)
+    label.delete(lbH)
+    label.delete(lbL)
+    rightX = bar_index + entryWin + maxHold
+    c = nLong ? color.green : color.red
+    bx  := box.new(bar_index, math.max(nA0, nA1), rightX, math.min(nA0, nA1),
+             border_color=color.new(color.gray, 50), bgcolor=color.new(c, 90))
+    lnE := line.new(bar_index, nE, rightX, nE, color=color.yellow, width=2)
+    lnS := line.new(bar_index, nS, rightX, nS, color=color.red, width=1, style=line.style_dashed)
+    lnT := line.new(bar_index, nT, rightX, nT, color=color.green, width=2)
+    lbE := label.new(rightX, nE, "entry", style=label.style_label_left,
+             color=color.new(color.yellow, 60), textcolor=color.white, size=size.small)
+    lbT := label.new(rightX, nT, "target", style=label.style_label_left,
+             color=color.new(color.green, 60), textcolor=color.white, size=size.small)
+    // mark the actual swing high & low used as anchors, joined by a dotted leg
+    lnSwing := line.new(plBar, plPrice, phBar, phPrice,
+             color=color.new(color.white, 20), style=line.style_dotted, width=2)
+    hVolTxt = na(phVol) ? "" : "  " + str.tostring(phVol, "#.0") + "x vol"
+    lVolTxt = na(plVol) ? "" : "  " + str.tostring(plVol, "#.0") + "x vol"
+    lbH := label.new(phBar, phPrice, (nLong ? "● SWING HIGH (1.0)" : "● SWING HIGH (0)") + hVolTxt,
+             style=label.style_label_down, color=color.orange,
+             textcolor=color.black, size=size.small)
+    lbL := label.new(plBar, plPrice, (nLong ? "● SWING LOW (0)" : "● SWING LOW (1.0)") + lVolTxt,
+             style=label.style_label_up, color=color.blue,
+             textcolor=color.white, size=size.small)
+
+// ---- trailing stop: ratchet the stop up the Fib levels while in a position ----
+if trailStop and strategy.position_size != 0 and not na(tA0)
+    be   = strategy.position_avg_price          // breakeven = actual fill price
+    l618 = tA0 + 0.618  * tRng
+    l100 = tA0 + 1.0    * tRng
+    l127 = tA0 + 1.272  * tRng
+    l162 = tA0 + 1.618  * tRng
+    if tLong
+        curStop := high >= l127 ? math.max(curStop, l100) : high >= l100 ? math.max(curStop, l618) : high >= l618 ? math.max(curStop, be) : curStop
+        strategy.exit("Lx", "L", stop=curStop, limit=l162)
+    else
+        curStop := low <= l127 ? math.min(curStop, l100) : low <= l100 ? math.min(curStop, l618) : low <= l618 ? math.min(curStop, be) : curStop
+        strategy.exit("Sx", "S", stop=curStop, limit=l162)
+
+// cancel stale pending entries
+if not na(pendBar) and strategy.position_size == 0 and (bar_index - pendBar) > entryWin
+    strategy.cancel("L")
+    strategy.cancel("S")
+    pendBar := na
+
+// max-hold time exit
+if strategy.position_size != 0 and na(entryBar)
+    entryBar := bar_index
+if strategy.position_size == 0
+    entryBar := na
+if not na(entryBar) and (bar_index - entryBar) >= maxHold
+    strategy.close_all(comment="time")
+
+// ---- auto 45-degree trend lines = the DIAGONALS of the high-low box: up-line from
+// the lowest-low corner rising to the high level at the right, down-line from the
+// highest-high corner falling to the low level. Together they make the X. ----
+var line up45 = na
+var line dn45 = na
+var label up45L = na
+var label dn45L = na
+if show45 and barstate.islast
+    line.delete(up45)
+    line.delete(dn45)
+    label.delete(up45L)
+    label.delete(dn45L)
+    llp = ta.lowest(low, look45)
+    llb = bar_index + ta.lowestbars(low, look45)      // lowestbars is <= 0 (bars back)
+    hhp = ta.highest(high, look45)
+    hhb = bar_index + ta.highestbars(high, look45)
+    rng45 = slope45 * (hhp - llp)                      // vertical travel by the right edge
+    up45 := line.new(llb, llp, bar_index, llp + rng45, color=upCol45, width=2, extend=extend.right)
+    dn45 := line.new(hhb, hhp, bar_index, hhp - rng45, color=dnCol45, width=2, extend=extend.right)
+    up45L := label.new(llb, llp, "45° up", style=label.style_label_up,
+             color=color.new(upCol45, 30), textcolor=color.white, size=size.tiny)
+    dn45L := label.new(hhb, hhp, "45° down", style=label.style_label_down,
+             color=color.new(dnCol45, 30), textcolor=color.white, size=size.tiny)
+
+// ---------------- legend ----------------
+var table lg = table.new(position.top_right, 1, 4, border_width=1)
+if barstate.islast
+    table.cell(lg, 0, 0, "Fib Strategy", bgcolor=color.gray, text_color=color.white, text_size=size.small)
+    table.cell(lg, 0, 1, "yellow = entry", text_color=color.yellow, text_size=size.tiny)
+    table.cell(lg, 0, 2, "green = target",  text_color=color.green,  text_size=size.tiny)
+    table.cell(lg, 0, 3, "red = stop",      text_color=color.red,    text_size=size.tiny)

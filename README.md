@@ -1,17 +1,19 @@
-# Fib Strategy (visual) v4.3
+# Fib Strategy (visual)
 
-A TradingView Pine Script (v5) swing strategy that buys deep pullbacks to a
-Fibonacci retracement of a confirmed pivot swing, with evidence-based defaults.
+TradingView Pine Script (v5) swing strategies that trade Fibonacci
+retracements of confirmed pivot swings.
 
-**File:** [`fib_strategy_v4.pine`](fib_strategy_v4.pine) — paste it into the
-TradingView Pine editor and add it to a chart.
+## Two scripts
 
-## What it does
-
-- Detects confirmed swing lows/highs (`ta.pivothigh` / `ta.pivotlow`) and arms a
-  limit entry on the pullback into the swing, with a bracket stop/target.
-- **A Preset dropdown selects a whole vetted profile** (the raw inputs apply
-  only when Preset = Custom):
+- **[`fib_strategy.pine`](fib_strategy.pine)** — the original visual strategy:
+  stop-entry at the 0.236 retracement, target at 1.0, tight stop under the
+  swing, fib-ratchet trailing to 1.618, longs and shorts. This is the classic
+  look: big target zone, snug stop. Heads-up from simulation (long side):
+  QQQ 1999-2019 ~21% win / PF 0.86; 10 large-caps 2013-18 ~28% win / PF 1.15.
+  It lives on infrequent big runners - judge it in the TradingView tester.
+- **[`fib_strategy_v4.pine`](fib_strategy_v4.pine)** — the researched rewrite
+  (v4.3): same visuals plus bug fixes, R-multiple stats, and a **Preset
+  dropdown** with three vetted profiles (raw inputs apply when Preset=Custom):
 
 | Preset | Geometry | Evidence (win rate / PF) |
 |---|---|---|
@@ -21,11 +23,6 @@ TradingView Pine editor and add it to a chart.
 
 Win rate, target size and stop distance are a pick-two triangle — the presets
 are three defensible corners of it, not three free lunches.
-- Filters: 200-SMA regime (longs only above it), swing-size bounds, optional
-  volume / impulse-slope / reward:risk gates.
-- Risk-based position sizing (~1% of equity per stop-out by default).
-- Visuals: the latest setup's entry/stop/target lines, swing zig-zag, live
-  stop line, volume highlighting, and a stats table with R-multiple expectancy.
 
 ## Evidence behind the defaults (v4.2)
 
