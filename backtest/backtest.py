@@ -47,7 +47,7 @@ def sma(vals, n):
 
 class Cfg:
     def __init__(self, **kw):
-        # v4.2 defaults (mirror fib_strategy_v4.pine)
+        # v4.2+ high-win defaults (mirror fib_strategy_v4.pine, preset 'High win rate')
         self.prd=8; self.entryFib=0.5; self.stopBuf=1.2; self.tgtFib=0.786
         self.minRange=0.04; self.maxRange=1.50; self.entryWin=30; self.maxHold=80
         self.trail=False; self.runnerFib=1.618
@@ -55,6 +55,7 @@ class Cfg:
         self.useVol=False; self.volLen=20; self.volMult=1.3
         self.cancelAtTgt=False; self.lockBracket=True
         self.breakExit=False   # exit next open if a bar CLOSES below the swing anchor
+        self.stopEntry=False   # old-code entry: BUY-STOP at the level (fills on the way UP)
         self.consFill=False    # pessimistic: limit entries fill at the level, never better
         for k,v in kw.items():
             assert hasattr(self,k), k
@@ -99,7 +100,10 @@ def run_ticker(bars, cfg):
                 elif h[t] >= tgt:  close_trade(tgt, t, "target", False); pos=None
         elif pend is not None and t > pend["placedBar"]:
             fill = None
-            if o[t] <= pend["e"]: fill = pend["e"] if cfg.consFill else o[t]
+            if cfg.stopEntry:
+                if o[t] >= pend["e"]: fill = o[t] + SLIP
+                elif h[t] >= pend["e"]: fill = pend["e"] + SLIP
+            elif o[t] <= pend["e"]: fill = pend["e"] if cfg.consFill else o[t]
             elif l[t] <= pend["e"]: fill = pend["e"]
             if fill is not None:
                 pos = dict(entry=fill, stop=pend["s"],
@@ -193,7 +197,7 @@ if __name__ == "__main__":
     data = load(sys.argv[1] if len(sys.argv) > 1 else "all_stocks_5yr.csv", TICKERS)
     cfg = Cfg()  # v4 defaults
     tot, per, _ = run_all(data, cfg, TICKERS)
-    print("v4.2 DEFAULTS:")
+    print("v4.1 DEFAULTS (high-win profile):")
     print(f"  ALL: n={tot['n']} win={tot['win']:.1f}% PF={tot['pf']:.2f} avgR={tot['avgR']:+.2f}")
     for t in TICKERS:
         p = per[t]
