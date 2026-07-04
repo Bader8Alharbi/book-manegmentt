@@ -10,19 +10,19 @@
 // RULES (long only, daily bars):
 //   * Trend filter: close > 200-SMA (stand aside in bear markets)
 //   * Entry: RSI(2) closes below 5  -> buy next open
-//   * Exit:  RSI(2) closes above 70, or 10 bars in trade -> sell next open
+//   * Exit:  RSI(2) closes above 80, or 20 bars in trade -> sell next open
 //   * No stop by default: stops measurably HURT this style (you are buying a
 //     dip - a stop sells the bottom). An optional ATR disaster stop exists
 //     for peace of mind; it costs performance. Size accordingly instead.
 //
 // EVIDENCE (Python port, next-open fills, 0.05%/side + slippage):
-//   QQQ 1999-2019 (dot-com AND 2008 bears): 80 trades, 73.8% win, PF 3.03,
-//     avg +0.98%/trade, max cum drawdown ~10% (per-trade sum basis)
-//   10 US large-caps, one per GICS sector (holdout): 73.7% win, PF 1.75
-//   Full S&P 500 universe, 497 tickers (validation): 66.4% win, PF 1.40,
-//     PF > 1 on 66% of tickers
-//   Neighboring parameters (buy < 5-15, sell > 60-80, hold 5-15) all profit
-//   on QQQ - a plateau, not a spike. Reproduce: backtest/mr.py
+//   QQQ 1999-2019 (dot-com AND 2008 bears): 78 trades, 75.6% win, PF 3.29,
+//     avg +1.24%/trade, max cum drawdown ~10% (per-trade sum basis)
+//   10 US large-caps, one per GICS sector (holdout): 70.7% win, PF 1.93
+//   Full S&P 500 universe, 497 tickers (validation): 67.2% win, PF 1.53,
+//   Neighboring parameters (buy < 5-15, sell > 60-85, hold 10-20) all profit
+//   on QQQ - a plateau, not a spike. The >=75% win goal holds on QQQ; expect
+//   ~70% on noisier single stocks. Reproduce: backtest/mr.py
 //
 // KNOWN LIMITS: data ends 2019 (verify 2020-2026 right here in the TradingView
 // tester); works on liquid indices/large-caps, weaker on illiquid names; the
@@ -36,8 +36,8 @@ strategy("Uptrend Reversion (RSI-2)", overlay=true,
 smaLen    = input.int(200,  "Trend SMA length", minval=20)
 rsiLen    = input.int(2,    "RSI length", minval=1)
 buyBelow  = input.float(5,  "Buy when RSI closes below", minval=1, maxval=50, tooltip="5 = tested default (highest PF). 10-15 trade more often with a bit less edge per trade - all profitable in test.")
-sellAbove = input.float(70, "Exit when RSI closes above", minval=50, maxval=99)
-maxHold   = input.int(10,   "Max bars to hold", minval=1, tooltip="Time exit if the bounce never comes. 10 = tested default.")
+sellAbove = input.float(80, "Exit when RSI closes above", minval=50, maxval=99, tooltip="80 = tested default (rides the bounce further; QQQ 75.6% win / PF 3.29). 70 exits sooner with slightly lower PF.")
+maxHold   = input.int(20,   "Max bars to hold", minval=1, tooltip="Time exit if the bounce never comes. 20 = tested default.")
 useStop   = input.bool(false, "ATR disaster stop", tooltip="OFF is the tested default - a stop sells the dip at its worst and cost performance in every test of this style. Turn on only if you cannot tolerate open drawdown, and expect a lower PF.")
 stopMult  = input.float(3.0, "ATR stop multiple", minval=1.0, step=0.5)
 useAlerts = input.bool(true, "Fire alert() on buy / exit signals")

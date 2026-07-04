@@ -9,15 +9,15 @@ long-term uptrend, exit into strength, stand aside in bear markets.**
 mean-reversion effect — in ~40 lines of logic:
 
 - Close > 200-SMA (uptrend only) and RSI(2) < 5 → buy next open
-- RSI(2) > 70 or 10 bars in trade → sell next open
+- RSI(2) > 80 or 20 bars in trade → sell next open
 - No stop by default (a stop sells the dip at its worst; optional ATR
   disaster stop included, at a measured performance cost)
 
 | Test (Python port, commission + slippage) | Trades | Win rate | PF | Avg trade |
 |---|---|---|---|---|
-| QQQ 1999–2019 (dot-com + 2008 bears) — dev | 80 | **73.8%** | **3.03** | +0.98% |
-| 10 large-caps, one per sector — holdout | 152 | 73.7% | 1.75 | +0.48% |
-| Full S&P 500 universe (497 tickers) | 6,845 | 66.4% | 1.40 | +0.37% |
+| QQQ 1999–2019 (dot-com + 2008 bears) — dev | 78 | **75.6%** | **3.29** | +1.24% |
+| 10 large-caps, one per sector — holdout | 150 | 70.7% | 1.93 | +0.61% |
+| Full S&P 500 universe (497 tickers) | ~6,700 | 67.2% | 1.53 | +0.45% |
 
 Neighboring parameters all profit (plateau). Reproduce: `backtest/mr.py`.
 Data ends 2019 — verify 2020–2026 directly in TradingView's tester.
