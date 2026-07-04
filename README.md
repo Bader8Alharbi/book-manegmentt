@@ -61,6 +61,7 @@ python3 search_classic.py                # classic-geometry search (Balanced pre
 python3 search_old.py                    # original-strategy tuning (fib_strategy.pine)
 python3 enhance_old.py                   # round-2 search + universe arbitration
 python3 scaleout.py                      # scale-out option evidence
+python3 fibstudy.py                      # wave-termination study (FIB_WAVE_STUDY.md)
 ```
 
 Full changelog and per-parameter rationale are in the header comments of the
