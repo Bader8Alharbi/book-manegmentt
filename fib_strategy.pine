@@ -5,6 +5,19 @@
 // Trade arrows (L/S enter, Lx/Sx exit) and $ P&L come from the Strategy Tester.
 // NOTE: default sizing is now RISK-BASED (see "Risk % of equity per trade" input),
 // not 100%-of-equity. default_qty_* below is only a fallback if risk sizing is off.
+// ---- TUNED (same trade shape, better fills & filters; QQQ 1999-2019 with two
+// bear markets + 10 large-caps 2013-18, Python port w/ commission+slippage): ----
+//  * ENTRY IS NOW A LIMIT ORDER (wait for the pullback). The old BUY-STOP chased
+//    price `prd` bars after the pivot and alone flipped QQQ from PF 0.86 (loss)
+//    to 1.40. Old behavior available via the "Entry order type" input.
+//  * REGIME FILTER ON by default (longs above 200SMA): QQQ PF 1.40 -> 1.71.
+//  * entryFib 0.318 (plateau center; 0.236 was the weakest of the band).
+//  * Shorts OFF by default - they lost on every instrument tested; the inputs
+//    remain if you want them (test on bear data first).
+//  Result, same geometry (tight 0.05 stop, trail to 1.618, ~25-30% win rate,
+//  few big runners pay for many small stops):
+//    QQQ 1999-2019: PF 1.76, avg +0.34R | stocks dev PF 1.88 | holdout PF 1.34
+//  Reproduce: see backtest/ (search_old.py).
 strategy("Fib Strategy (visual)", overlay=true,
      initial_capital=10000, default_qty_type=strategy.percent_of_equity,
      default_qty_value=100, commission_type=strategy.commission.percent,
@@ -13,11 +26,11 @@ strategy("Fib Strategy (visual)", overlay=true,
 
 // ---------------- inputs ----------------
 prd      = input.int(8,     "Pivot Period")  // 8 beat 5 on CAGR *and* drawdown, robust in OOS + ticker-split tests
-entryFib = input.float(0.236, "Entry retracement level")  // 0.236 = best per backtest
+entryFib = input.float(0.318, "Entry retracement level")  // 0.318-0.382 = robust band (0.236 weakest)
 stopBuf  = input.float(0.05, "Stop buffer (x range beyond anchor 0)")
 tgtFib   = input.float(1.0,  "Target (fib units)", options=[1.0, 1.272, 1.618])
 useLong  = input.bool(true,  "Take longs")
-useShort = input.bool(true,  "Take shorts")
+useShort = input.bool(false, "Take shorts")  // lost on every test instrument; see header
 minRange = input.float(0.04, "Min swing size (range/anchor0)")
 maxRange = input.float(1.50, "Max swing size (range/anchor0)")
 entryWin = input.int(30,     "Bars to wait for an entry fill")
@@ -37,7 +50,9 @@ riskPct   = input.float(1.0,  "Risk % of equity per trade", minval=0.1, maxval=5
 maxExpo   = input.float(100,  "Max position size (% of equity, no-leverage cap)", group="Smart")
 useRR     = input.bool(true,  "Require minimum reward:risk", group="Smart")
 minRR     = input.float(1.5,  "Min reward:risk (target vs stop)", minval=0.5, step=0.1, group="Smart")
-useRegime = input.bool(false, "Regime filter (longs only above SMA, shorts only below)", group="Smart")
+entryType = input.string("Limit (wait for the pullback)", "Entry order type", options=["Stop (enter the bounce)", "Limit (wait for the pullback)"], group="Smart")
+useLimit  = entryType == "Limit (wait for the pullback)"
+useRegime = input.bool(true,  "Regime filter (longs only above SMA, shorts only below)", group="Smart")
 regimeLen = input.int(200,    "Regime SMA length", minval=20, group="Smart")
 // 45-degree breakout: only take setups where price rebounded steeply into entry.
 // slope = |close - anchor| / (ATR x bars-since-anchor) = ATRs per bar. ~0.2-0.3 is
@@ -206,7 +221,7 @@ if useLong and not na(pl) and not na(phPrice) and phBar < plBar and phPrice > pl
         nLong := true
         newSetup := true
         qL = qtyFor(nE, nS)
-        strategy.entry("L", strategy.long, qty=qL, stop=nE)
+        strategy.entry("L", strategy.long, qty=qL, stop=(useLimit ? na : nE), limit=(useLimit ? nE : na))
         strategy.exit("Lx", "L", stop=nS, limit=(trailStop ? a0 + 1.618 * rng : nT))
         pendBar := bar_index
         tA0 := a0
@@ -231,7 +246,7 @@ if useShort and not na(ph) and not na(plPrice) and plBar < phBar and plPrice < p
         nLong := false
         newSetup := true
         qS = qtyFor(nE, nS)
-        strategy.entry("S", strategy.short, qty=qS, stop=nE)
+        strategy.entry("S", strategy.short, qty=qS, stop=(useLimit ? na : nE), limit=(useLimit ? nE : na))
         strategy.exit("Sx", "S", stop=nS, limit=(trailStop ? a0 + 1.618 * rng : nT))
         pendBar := bar_index
         tA0 := a0

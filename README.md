@@ -5,12 +5,16 @@ retracements of confirmed pivot swings.
 
 ## Two scripts
 
-- **[`fib_strategy.pine`](fib_strategy.pine)** — the original visual strategy:
-  stop-entry at the 0.236 retracement, target at 1.0, tight stop under the
-  swing, fib-ratchet trailing to 1.618, longs and shorts. This is the classic
-  look: big target zone, snug stop. Heads-up from simulation (long side):
-  QQQ 1999-2019 ~21% win / PF 0.86; 10 large-caps 2013-18 ~28% win / PF 1.15.
-  It lives on infrequent big runners - judge it in the TradingView tester.
+- **[`fib_strategy.pine`](fib_strategy.pine)** — the original visual strategy,
+  now TUNED with its trade shape intact: entry on the shallow retracement
+  (0.318), tight 0.05 stop under the swing, target 1.0 with the fib-ratchet
+  trail to 1.618. Two default changes carry the improvement — the entry is a
+  **limit order** (the old buy-stop chased price and alone flipped QQQ from
+  PF 0.86 to 1.40) and the **regime filter is on** (PF 1.40 → 1.71). Tuned:
+  **QQQ 1999–2019 PF 1.76 (+0.34R avg)**, stocks dev PF 1.88 / holdout 1.34.
+  Win rate is ~25–30% by design: a few 1.618 runners pay for many small stops.
+  The old behavior is one input away (Entry order type = Stop; shorts inputs
+  kept, default off).
 - **[`fib_strategy_v4.pine`](fib_strategy_v4.pine)** — the researched rewrite
   (v4.3): same visuals plus bug fixes, R-multiple stats, and a **Preset
   dropdown** with three vetted profiles (raw inputs apply when Preset=Custom):
@@ -63,6 +67,7 @@ curl -o QQQ.csv https://raw.githubusercontent.com/nateGeorge/simulate_leveraged_
 python3 backtest.py all_stocks_5yr.csv   # shipped defaults on the 10 tickers
 python3 search_qqq.py                    # QQQ-dev search + stock-split validation
 python3 search_classic.py                # classic-geometry search (Balanced preset)
+python3 search_old.py                    # original-strategy tuning (fib_strategy.pine)
 ```
 
 Full changelog and per-parameter rationale are in the header comments of the
