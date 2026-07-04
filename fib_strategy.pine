@@ -25,7 +25,12 @@
 //  on QQQ alone, Regime SMA length 150 historically beat 200 (PF 2.11 vs
 //  1.76; stress-fill 1.42) but was slightly worse across the universe -
 //  flip that one input if you trade only QQQ, knowing it's QQQ-fitted.
-//  Reproduce: see backtest/ (search_old.py, enhance_old.py).
+//  NEW: optional SCALE-OUT (pure fib levels, no indicators): bank part of the
+//  position at 0.618/0.786/1.0/1.272 and trail the rest to 1.618. Banking 50%
+//  at 0.618 lifts win rate 22%->59% (QQQ) / 28%->54% (498 tickers) at a PF
+//  cost of ~0.2 / ~0.06. Default OFF (max expectancy); turn it on if you
+//  want most trades green. Reproduce: backtest/ (search_old.py, enhance_old.py,
+//  scaleout.py).
 strategy("Fib Strategy (visual)", overlay=true,
      initial_capital=10000, default_qty_type=strategy.percent_of_equity,
      default_qty_value=100, commission_type=strategy.commission.percent,
@@ -60,6 +65,12 @@ useRR     = input.bool(true,  "Require minimum reward:risk", group="Smart")
 minRR     = input.float(1.5,  "Min reward:risk (target vs stop)", minval=0.5, step=0.1, group="Smart")
 entryType = input.string("Limit (wait for the pullback)", "Entry order type", options=["Stop (enter the bounce)", "Limit (wait for the pullback)"], group="Smart")
 useLimit  = entryType == "Limit (wait for the pullback)"
+// scale-out: pure fib levels, no indicators. Tested (QQQ 1999-2019 / 498 tickers):
+// banking 50% at 0.618 lifts the win rate 22%->59% / 28%->54% but costs PF
+// 1.76->1.56 / 1.25->1.19. OFF = max expectancy; ON = far more green trades.
+usePartial = input.bool(false, "Scale out: bank part at a fib level, trail the rest to 1.618", group="Smart", tooltip="More winners, slightly less total profit - see the numbers in the code comment above this input. Every tested variant stayed profitable.")
+partialPct = input.float(50,    "Banked size (% of position)", minval=10, maxval=90, step=5, group="Smart")
+partialTgt = input.float(0.618, "Bank-at level (fib units)", options=[0.618, 0.786, 1.0, 1.272], group="Smart")
 useRegime = input.bool(true,  "Regime filter (longs only above SMA, shorts only below)", group="Smart")
 regimeLen = input.int(200,    "Regime SMA length", minval=20, group="Smart")
 // 45-degree breakout: only take setups where price rebounded steeply into entry.
@@ -230,7 +241,11 @@ if useLong and not na(pl) and not na(phPrice) and phBar < plBar and phPrice > pl
         newSetup := true
         qL = qtyFor(nE, nS)
         strategy.entry("L", strategy.long, qty=qL, stop=(useLimit ? na : nE), limit=(useLimit ? nE : na))
-        strategy.exit("Lx", "L", stop=nS, limit=(trailStop ? a0 + 1.618 * rng : nT))
+        if usePartial
+            strategy.exit("Lx1", "L", qty_percent=partialPct, stop=nS, limit=a0 + partialTgt * rng)
+            strategy.exit("Lx2", "L", stop=nS, limit=a0 + 1.618 * rng)
+        else
+            strategy.exit("Lx", "L", stop=nS, limit=(trailStop ? a0 + 1.618 * rng : nT))
         pendBar := bar_index
         tA0 := a0
         tRng := rng
@@ -255,7 +270,11 @@ if useShort and not na(ph) and not na(plPrice) and plBar < phBar and plPrice < p
         newSetup := true
         qS = qtyFor(nE, nS)
         strategy.entry("S", strategy.short, qty=qS, stop=(useLimit ? na : nE), limit=(useLimit ? nE : na))
-        strategy.exit("Sx", "S", stop=nS, limit=(trailStop ? a0 + 1.618 * rng : nT))
+        if usePartial
+            strategy.exit("Sx1", "S", qty_percent=partialPct, stop=nS, limit=a0 + partialTgt * rng)
+            strategy.exit("Sx2", "S", stop=nS, limit=a0 + 1.618 * rng)
+        else
+            strategy.exit("Sx", "S", stop=nS, limit=(trailStop ? a0 + 1.618 * rng : nT))
         pendBar := bar_index
         tA0 := a0
         tRng := rng
@@ -305,10 +324,16 @@ if trailStop and strategy.position_size != 0 and not na(tA0)
     l162 = tA0 + 1.618  * tRng
     if tLong
         curStop := high >= l127 ? math.max(curStop, l100) : high >= l100 ? math.max(curStop, l618) : high >= l618 ? math.max(curStop, be) : curStop
-        strategy.exit("Lx", "L", stop=curStop, limit=l162)
+        if usePartial
+            strategy.exit("Lx2", "L", stop=curStop, limit=l162)
+        else
+            strategy.exit("Lx", "L", stop=curStop, limit=l162)
     else
         curStop := low <= l127 ? math.min(curStop, l100) : low <= l100 ? math.min(curStop, l618) : low <= l618 ? math.min(curStop, be) : curStop
-        strategy.exit("Sx", "S", stop=curStop, limit=l162)
+        if usePartial
+            strategy.exit("Sx2", "S", stop=curStop, limit=l162)
+        else
+            strategy.exit("Sx", "S", stop=curStop, limit=l162)
 
 // cancel stale pending entries
 if not na(pendBar) and strategy.position_size == 0 and (bar_index - pendBar) > entryWin
