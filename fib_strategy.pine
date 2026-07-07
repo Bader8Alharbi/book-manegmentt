@@ -71,7 +71,7 @@ zzWidth  = input.int(2, "Zig-zag line width", minval=1, maxval=4, group="Zig-zag
 useRisk   = input.bool(true,  "Risk-based sizing (size by stop distance, not 100% equity)", group="Smart")
 riskPct   = input.float(1.0,  "Risk % of equity per trade", minval=0.1, maxval=5.0, step=0.1, group="Smart")
 maxExpo   = input.float(100,  "Max position size (% of equity, no-leverage cap)", group="Smart")
-useRR     = input.bool(true,  "Require minimum reward:risk", group="Smart")
+useRR     = input.bool(false, "Require minimum reward:risk", group="Smart", tooltip="OFF by default: with fixed fib geometry this ratio is a constant per settings, so the gate either always passes or silently vetoes EVERY trade (a 1.43-vs-1.5 mismatch once blocked all setups). Only meaningful if you change levels around.")
 minRR     = input.float(1.5,  "Min reward:risk (target vs stop)", minval=0.5, step=0.1, group="Smart")
 entryType = input.string("Limit (wait for the pullback)", "Entry order type", options=["Stop (enter the bounce)", "Limit (wait for the pullback)"], group="Smart")
 useLimit  = entryType == "Limit (wait for the pullback)"
@@ -222,6 +222,8 @@ if showZZ and not na(pl)
 
 var int pendBar  = na
 var int entryBar = na
+var string lastWhy = na    // why the most recent candidate swing was rejected
+var int lastWhyBar = na
 
 // active-trade anchors for the trailing stop
 var float tA0   = na
@@ -255,9 +257,13 @@ if useLong and not na(pl) and not na(phPrice) and phBar < plBar and phPrice > pl
     a0 = plPrice
     a1 = phPrice
     rng = a1 - a0
-    rrL = (a0 + tgtFib * rng - (a0 + entryFib * rng)) / ((a0 + entryFib * rng) - (a0 - stopBuf * rng))
+    sLact = useLadder ? a0 + array.get(RUNGS, math.max(rEIdx - givebackN, 0)) * rng : a0 - stopBuf * rng
+    rrL = (a0 + tgtFib * rng - (a0 + entryFib * rng)) / math.max(a0 + entryFib * rng - sLact, syminfo.mintick)
     angL = (bar_index > plBar and atrA > 0) ? math.abs(close - plPrice) / (atrA * (bar_index - plBar)) : 0.0
     okL = rng / a0 >= minRange and rng / a0 <= maxRange and (not useRR or rrL >= minRR) and (not useRegime or bullRegime) and (not useVol or (not na(plVol) and plVol >= volMult)) and (not useAngle or angL >= minAngle)
+    if not okL
+        lastWhy := rng / a0 < minRange ? "swing " + str.tostring(100*rng/a0, "#.#") + "% < min " + str.tostring(100*minRange, "#.#") + "%" : rng / a0 > maxRange ? "swing too big" : (useRR and rrL < minRR) ? "R:R " + str.tostring(rrL, "#.##") + " < " + str.tostring(minRR, "#.##") : (useRegime and not bullRegime) ? "below regime SMA (longs off)" : (useVol and not (not na(plVol) and plVol >= volMult)) ? "anchor volume too low" : "impulse angle too flat"
+        lastWhyBar := bar_index
     if okL
         nE := a0 + entryFib * rng
         nS := useLadder ? a0 + array.get(RUNGS, math.max(rEIdx - givebackN, 0)) * rng : a0 - stopBuf * rng
@@ -285,9 +291,13 @@ if useShort and not na(ph) and not na(plPrice) and plBar < phBar and plPrice < p
     a0 = phPrice
     a1 = plPrice
     rng = a1 - a0
-    rrS = ((a0 + entryFib * rng) - (a0 + tgtFib * rng)) / ((a0 - stopBuf * rng) - (a0 + entryFib * rng))
+    sSact = useLadder ? a0 + array.get(RUNGS, math.max(rEIdx - givebackN, 0)) * rng : a0 - stopBuf * rng
+    rrS = ((a0 + entryFib * rng) - (a0 + tgtFib * rng)) / math.max(sSact - (a0 + entryFib * rng), syminfo.mintick)
     angS = (bar_index > phBar and atrA > 0) ? math.abs(close - phPrice) / (atrA * (bar_index - phBar)) : 0.0
     okS = math.abs(rng) / a0 >= minRange and math.abs(rng) / a0 <= maxRange and (not useRR or rrS >= minRR) and (not useRegime or bearRegime) and (not useVol or (not na(phVol) and phVol >= volMult)) and (not useAngle or angS >= minAngle)
+    if not okS
+        lastWhy := math.abs(rng) / a0 < minRange ? "swing " + str.tostring(100*math.abs(rng)/a0, "#.#") + "% < min " + str.tostring(100*minRange, "#.#") + "%" : math.abs(rng) / a0 > maxRange ? "swing too big" : (useRR and rrS < minRR) ? "R:R " + str.tostring(rrS, "#.##") + " < " + str.tostring(minRR, "#.##") : (useRegime and not bearRegime) ? "above regime SMA (shorts off)" : (useVol and not (not na(phVol) and phVol >= volMult)) ? "anchor volume too low" : "impulse angle too flat"
+        lastWhyBar := bar_index
     if okS
         nE := a0 + entryFib * rng
         nS := useLadder ? a0 + array.get(RUNGS, math.max(rEIdx - givebackN, 0)) * rng : a0 - stopBuf * rng
@@ -418,9 +428,11 @@ if show45 and barstate.islast
              color=color.new(dnCol45, 30), textcolor=color.white, size=size.tiny)
 
 // ---------------- legend ----------------
-var table lg = table.new(position.top_right, 1, 4, border_width=1)
+var table lg = table.new(position.top_right, 1, 5, border_width=1)
 if barstate.islast
     table.cell(lg, 0, 0, "Fib Strategy", bgcolor=color.gray, text_color=color.white, text_size=size.small)
     table.cell(lg, 0, 1, "yellow = entry", text_color=color.yellow, text_size=size.tiny)
     table.cell(lg, 0, 2, "green = target",  text_color=color.green,  text_size=size.tiny)
     table.cell(lg, 0, 3, "red = stop",      text_color=color.red,    text_size=size.tiny)
+    diag = strategy.position_size != 0 ? "in a trade" : not na(pendBar) ? "order waiting at the entry" : na(lastWhy) ? "waiting for a swing" : "last swing skipped: " + lastWhy + " (" + str.tostring(bar_index - lastWhyBar) + " bars ago)"
+    table.cell(lg, 0, 4, diag, text_color=color.new(color.white, 20), text_size=size.tiny)

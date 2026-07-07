@@ -77,3 +77,35 @@ the edge that structure offers ("buy the pullback of the latest wave").
 
 Reproduce: `python3 fibstudy.py` (needs `all_stocks_5yr.csv` and `QQQ.csv`,
 see backtest/README.md).
+
+## Addendum: the "two-level correction" reversal claim (reversal_test.py)
+
+**Claim:** "if the stock corrects two fib levels, it usually reverses."
+
+**Race test** — for every completed up-wave, after price gives back to level X,
+which comes first: a NEW HIGH above the wave top (continuation) or a FULL
+RETRACE to the wave start (reversal)? 12,000-17,000 events, QQQ + 498 tickers:
+
+| gave back to | new high first | full retrace first |
+|---|---|---|
+| 0.786 (1 rung) | 50.2% | 49.8% |
+| **0.618 (2 rungs)** | **43.7%** | **56.3%** |
+| 0.5 (3 rungs) | 37.3% | 62.7% |
+| 0.382 (deep) | 30.3% | 69.7% |
+
+The claim is DIRECTIONALLY TRUE and dose-dependent: at one rung it is a coin
+flip; at two rungs the odds tilt to reversal (56/44) and keep tilting deeper.
+"Two levels" is exactly where the coin starts leaning.
+
+**But the tradeable SHORT of it loses.** Shorting the 2-rung giveback (stop
+above the wave high, ladder down): universe PF 0.54 (n=14,209), QQQ PF 0.74.
+Only QQQ *below its 200-SMA* was profitable (PF 1.36, n=40 - thin), and the
+same filter still lost across the universe (PF 0.59). Why: the reversal odds
+(56%) are real but the geometry is terrible - the stop above the wave high is
+far, downside is slow and choppy, and the 44% continuations rip. The correct
+uses of the signal are DEFENSIVE: exit longs on the giveback (the strategy's
+default exit) and do not buy again until a new swing forms.
+
+**Selling longs between 1.0-1.272 (fixed TP) re-tested:** TP 1.0 universe PF
+1.20, TP 1.136 PF 1.23, TP 1.272 PF 1.26, riding the giveback PF 1.32 - every
+fixed TP underperforms the giveback exit.
