@@ -25,6 +25,16 @@
 //  on QQQ alone, Regime SMA length 150 historically beat 200 (PF 2.11 vs
 //  1.76; stress-fill 1.42) but was slightly worse across the universe -
 //  flip that one input if you trade only QQQ, knowing it's QQQ-fitted.
+//  NEW DEFAULT EXIT = the RUNG LADDER (the user's level-to-level system):
+//  enter 0.382, ride the rungs 0.786/1.0/1.272/1.618/2.0, exit when price
+//  gives back TWO rungs from the highest rung tagged; no fixed target.
+//  Tested vs the ratchet trail (planned-risk accounting, 7,200+ trades,
+//  498 tickers): PF 1.32 vs 1.28, avg +0.18R vs +0.12R, win 33.5% vs 28.4%.
+//  QQQ alone preferred the ratchet (1.53 vs 1.72) - both modes stay
+//  selectable via "Exit mode". A fixed TP at 1.272 tested WORSE everywhere
+//  (universe PF 1.26): the giveback needs the occasional 1.618+ runner.
+//  Post-giveback reversal was tested and REJECTED: after a giveback exit
+//  price drifts UP (+0.81%/10d vs +0.57% baseline) - exit yes, short no.
 //  NEW: optional SCALE-OUT (pure fib levels, no indicators): bank part of the
 //  position at 0.618/0.786/1.0/1.272 and trail the rest to 1.618. Banking 50%
 //  at 0.618 lifts win rate 22%->59% (QQQ) / 28%->54% (498 tickers) at a PF
@@ -39,7 +49,7 @@ strategy("Fib Strategy (visual)", overlay=true,
 
 // ---------------- inputs ----------------
 prd      = input.int(8,     "Pivot Period")  // 8 beat 5 on CAGR *and* drawdown, robust in OOS + ticker-split tests
-entryFib = input.float(0.318, "Entry retracement level")  // 0.318-0.382 = robust band (0.236 weakest)
+entryFib = input.float(0.382, "Entry retracement level")  // 0.318-0.382 = robust band (0.236 weakest)
 stopBuf  = input.float(0.05, "Stop buffer (x range beyond anchor 0)")
 tgtFib   = input.float(1.0,  "Target (fib units)", options=[1.0, 1.272, 1.618])
 useLong  = input.bool(true,  "Take longs")
@@ -65,6 +75,22 @@ useRR     = input.bool(true,  "Require minimum reward:risk", group="Smart")
 minRR     = input.float(1.5,  "Min reward:risk (target vs stop)", minval=0.5, step=0.1, group="Smart")
 entryType = input.string("Limit (wait for the pullback)", "Entry order type", options=["Stop (enter the bounce)", "Limit (wait for the pullback)"], group="Smart")
 useLimit  = entryType == "Limit (wait for the pullback)"
+// EXIT MODE. "Rung ladder" = the level-to-level system: ride the rungs
+// (0.382 / 0.786 / 1.0 / 1.272 / 1.618 / 2.0) and exit when price gives back
+// TWO rungs from the highest rung tagged; no fixed target (the rare 1.618+
+// runners pay for everything). Tested vs the ratchet trail on 7,200+ trades
+// across 498 tickers: PF 1.32 vs 1.28, avg +0.18R vs +0.12R, win 33.5% vs
+// 28.4% (QQQ alone preferred the ratchet, 1.53 vs 1.72). A fixed TP at 1.272
+// tested WORSE (universe PF 1.26) - the giveback alone is the better exit.
+exitMode  = input.string("Rung ladder (2-rung giveback)", "Exit mode", options=["Rung ladder (2-rung giveback)", "Fib ratchet trail to 1.618"], group="Smart", tooltip="Rung ladder = level-to-level: stop sits two rungs under the highest rung price has tagged; climbs as rungs break; no fixed target. Ratchet trail = the previous default (stop steps up be/0.618/1.0, target 1.618).")
+useLadder = exitMode == "Rung ladder (2-rung giveback)"
+givebackN = input.int(2, "Giveback rungs (ladder mode)", minval=1, maxval=3, group="Smart")
+var float[] RUNGS = array.from(0.0, 0.382, 0.786, 1.0, 1.272, 1.618, 2.0)
+var int rEIdx = 0
+if barstate.isfirst
+    for i = 0 to array.size(RUNGS) - 1
+        if array.get(RUNGS, i) <= entryFib
+            rEIdx := i
 // scale-out: pure fib levels, no indicators. Tested (QQQ 1999-2019 / 498 tickers):
 // banking 50% at 0.618 lifts the win rate 22%->59% / 28%->54% but costs PF
 // 1.76->1.56 / 1.25->1.19. OFF = max expectancy; ON = far more green trades.
@@ -202,6 +228,7 @@ var float tA0   = na
 var float tRng  = na
 var bool  tLong = na
 var float curStop = na
+var int   tHi   = na    // highest ladder rung tagged (ladder exit mode)
 
 // drawing handles — only the latest setup is kept on screen
 var box   bx  = na
@@ -233,7 +260,7 @@ if useLong and not na(pl) and not na(phPrice) and phBar < plBar and phPrice > pl
     okL = rng / a0 >= minRange and rng / a0 <= maxRange and (not useRR or rrL >= minRR) and (not useRegime or bullRegime) and (not useVol or (not na(plVol) and plVol >= volMult)) and (not useAngle or angL >= minAngle)
     if okL
         nE := a0 + entryFib * rng
-        nS := a0 - stopBuf * rng
+        nS := useLadder ? a0 + array.get(RUNGS, math.max(rEIdx - givebackN, 0)) * rng : a0 - stopBuf * rng
         nT := a0 + tgtFib * rng
         nA0 := a0
         nA1 := a1
@@ -243,14 +270,15 @@ if useLong and not na(pl) and not na(phPrice) and phBar < plBar and phPrice > pl
         strategy.entry("L", strategy.long, qty=qL, stop=(useLimit ? na : nE), limit=(useLimit ? nE : na))
         if usePartial
             strategy.exit("Lx1", "L", qty_percent=partialPct, stop=nS, limit=a0 + partialTgt * rng)
-            strategy.exit("Lx2", "L", stop=nS, limit=a0 + 1.618 * rng)
+            strategy.exit("Lx2", "L", stop=nS, limit=(useLadder ? na : a0 + 1.618 * rng))
         else
-            strategy.exit("Lx", "L", stop=nS, limit=(trailStop ? a0 + 1.618 * rng : nT))
+            strategy.exit("Lx", "L", stop=nS, limit=(useLadder ? na : (trailStop ? a0 + 1.618 * rng : nT)))
         pendBar := bar_index
         tA0 := a0
         tRng := rng
         tLong := true
         curStop := nS
+        tHi := rEIdx
 
 // ---------------- SHORT setup: mirror --------------------------------------
 if useShort and not na(ph) and not na(plPrice) and plBar < phBar and plPrice < phPrice
@@ -262,7 +290,7 @@ if useShort and not na(ph) and not na(plPrice) and plBar < phBar and plPrice < p
     okS = math.abs(rng) / a0 >= minRange and math.abs(rng) / a0 <= maxRange and (not useRR or rrS >= minRR) and (not useRegime or bearRegime) and (not useVol or (not na(phVol) and phVol >= volMult)) and (not useAngle or angS >= minAngle)
     if okS
         nE := a0 + entryFib * rng
-        nS := a0 - stopBuf * rng
+        nS := useLadder ? a0 + array.get(RUNGS, math.max(rEIdx - givebackN, 0)) * rng : a0 - stopBuf * rng
         nT := a0 + tgtFib * rng
         nA0 := a0
         nA1 := a1
@@ -272,14 +300,15 @@ if useShort and not na(ph) and not na(plPrice) and plBar < phBar and plPrice < p
         strategy.entry("S", strategy.short, qty=qS, stop=(useLimit ? na : nE), limit=(useLimit ? nE : na))
         if usePartial
             strategy.exit("Sx1", "S", qty_percent=partialPct, stop=nS, limit=a0 + partialTgt * rng)
-            strategy.exit("Sx2", "S", stop=nS, limit=a0 + 1.618 * rng)
+            strategy.exit("Sx2", "S", stop=nS, limit=(useLadder ? na : a0 + 1.618 * rng))
         else
-            strategy.exit("Sx", "S", stop=nS, limit=(trailStop ? a0 + 1.618 * rng : nT))
+            strategy.exit("Sx", "S", stop=nS, limit=(useLadder ? na : (trailStop ? a0 + 1.618 * rng : nT)))
         pendBar := bar_index
         tA0 := a0
         tRng := rng
         tLong := false
         curStop := nS
+        tHi := rEIdx
 
 // ---- redraw: erase previous setup, draw the new one only ----
 if newSetup and showDraw
@@ -315,25 +344,40 @@ if newSetup and showDraw
              style=label.style_label_up, color=color.blue,
              textcolor=color.white, size=size.small)
 
-// ---- trailing stop: ratchet the stop up the Fib levels while in a position ----
-if trailStop and strategy.position_size != 0 and not na(tA0)
-    be   = strategy.position_avg_price          // breakeven = actual fill price
-    l618 = tA0 + 0.618  * tRng
-    l100 = tA0 + 1.0    * tRng
-    l127 = tA0 + 1.272  * tRng
-    l162 = tA0 + 1.618  * tRng
-    if tLong
-        curStop := high >= l127 ? math.max(curStop, l100) : high >= l100 ? math.max(curStop, l618) : high >= l618 ? math.max(curStop, be) : curStop
-        if usePartial
-            strategy.exit("Lx2", "L", stop=curStop, limit=l162)
+// ---- in-trade exit management ----
+// Ladder mode: climb the rung counter as levels break; stop = two rungs down.
+// Ratchet mode: the previous fib-level trail with the 1.618 target.
+if strategy.position_size != 0 and not na(tA0) and (useLadder or trailStop)
+    be = strategy.position_avg_price            // breakeven = actual fill price
+    if useLadder and not na(tHi)
+        if tLong
+            while tHi + 1 < array.size(RUNGS) and high >= tA0 + array.get(RUNGS, tHi + 1) * tRng
+                tHi += 1
         else
-            strategy.exit("Lx", "L", stop=curStop, limit=l162)
-    else
-        curStop := low <= l127 ? math.min(curStop, l100) : low <= l100 ? math.min(curStop, l618) : low <= l618 ? math.min(curStop, be) : curStop
-        if usePartial
-            strategy.exit("Sx2", "S", stop=curStop, limit=l162)
+            while tHi + 1 < array.size(RUNGS) and low <= tA0 + array.get(RUNGS, tHi + 1) * tRng
+                tHi += 1
+        curStop := tA0 + array.get(RUNGS, math.max(tHi - givebackN, 0)) * tRng
+        if tLong
+            strategy.exit(usePartial ? "Lx2" : "Lx", "L", stop=curStop)
         else
-            strategy.exit("Sx", "S", stop=curStop, limit=l162)
+            strategy.exit(usePartial ? "Sx2" : "Sx", "S", stop=curStop)
+    else if trailStop
+        l618 = tA0 + 0.618  * tRng
+        l100 = tA0 + 1.0    * tRng
+        l127 = tA0 + 1.272  * tRng
+        l162 = tA0 + 1.618  * tRng
+        if tLong
+            curStop := high >= l127 ? math.max(curStop, l100) : high >= l100 ? math.max(curStop, l618) : high >= l618 ? math.max(curStop, be) : curStop
+            if usePartial
+                strategy.exit("Lx2", "L", stop=curStop, limit=l162)
+            else
+                strategy.exit("Lx", "L", stop=curStop, limit=l162)
+        else
+            curStop := low <= l127 ? math.min(curStop, l100) : low <= l100 ? math.min(curStop, l618) : low <= l618 ? math.min(curStop, be) : curStop
+            if usePartial
+                strategy.exit("Sx2", "S", stop=curStop, limit=l162)
+            else
+                strategy.exit("Sx", "S", stop=curStop, limit=l162)
 
 // cancel stale pending entries
 if not na(pendBar) and strategy.position_size == 0 and (bar_index - pendBar) > entryWin

@@ -24,6 +24,15 @@ a few 1.618 runners pay for many small stops. Two further search rounds
 (1,000+ variants each) found nothing that beat these defaults on the full
 498-ticker S&P universe: they are confirmed robust, not stale.
 
+**Exit mode (new default): the rung ladder** — the level-to-level system:
+enter at 0.382, ride the rungs (0.786 / 1.0 / 1.272 / 1.618 / 2.0), exit when
+price gives back **two rungs** from the highest rung tagged, no fixed target.
+Versus the old ratchet trail on 7,200+ trades across 498 tickers: PF 1.32 vs
+1.28, +0.18R vs +0.12R per trade, 33.5% vs 28.4% win rate (QQQ alone preferred
+the ratchet — both modes are selectable). A fixed take-profit at 1.272 tested
+worse everywhere; and shorting after a giveback was tested and rejected
+(price drifts up after those exits, not down). Evidence: `backtest/ladder_sys.py`.
+
 **Options, all price-action, all measured:**
 
 - **Scale out** (off by default): bank 50% at the 0.618 level, trail the rest
@@ -73,6 +82,7 @@ python3 search_old.py                    # original-strategy tuning (fib_strateg
 python3 enhance_old.py                   # round-2 search + universe arbitration
 python3 scaleout.py                      # scale-out option evidence
 python3 fibstudy.py                      # wave-termination study (FIB_WAVE_STUDY.md)
+python3 ladder_sys.py                    # rung-ladder exit system evidence
 ```
 
 Full changelog and per-parameter rationale are in the header comments of the

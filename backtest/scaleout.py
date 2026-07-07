@@ -77,7 +77,7 @@ def run(bars, cfg):
                 if w1 > 0: legs[0]=dict(w=w1, tgt=a0+cfg.tgt1*rng)
                 legs[1]=dict(w=1.0-w1, tgt=a0+cfg.runnerFib*rng)
                 pos=dict(e=fill, s=pend["s"], curStop=pend["s"], a0=a0, rng=rng,
-                         riskPS=abs(fill-pend["s"]), b=t, legs=legs, done=0.0)
+                         riskPS=abs(pend["e"]-pend["s"]), b=t, legs=legs, done=0.0)
                 pend=None
                 if l[t] <= pos["s"]:
                     for li in (0,1):
