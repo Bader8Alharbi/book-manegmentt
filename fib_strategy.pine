@@ -85,11 +85,15 @@ useLimit  = entryType == "Limit (wait for the pullback)"
 exitMode  = input.string("Rung ladder (2-rung giveback)", "Exit mode", options=["Rung ladder (2-rung giveback)", "Fib ratchet trail to 1.618"], group="Smart", tooltip="Rung ladder = level-to-level: stop sits two rungs under the highest rung price has tagged; climbs as rungs break; no fixed target. Ratchet trail = the previous default (stop steps up be/0.618/1.0, target 1.618).")
 useLadder = exitMode == "Rung ladder (2-rung giveback)"
 givebackN = input.int(2, "Giveback rungs (ladder mode)", minval=1, maxval=3, group="Smart")
-var float[] RUNGS = array.from(0.0, 0.382, 0.786, 1.0, 1.272, 1.618, 2.0)
+// ladder rungs as a pure CLAMPED function - no arrays, no out-of-bounds possible
+NRUNGS = 7
+rungAt(int i) =>
+    j = math.max(math.min(i, NRUNGS - 1), 0)
+    j == 0 ? 0.0 : j == 1 ? 0.382 : j == 2 ? 0.786 : j == 3 ? 1.0 : j == 4 ? 1.272 : j == 5 ? 1.618 : 2.0
 var int rEIdx = 0
 if barstate.isfirst
-    for i = 0 to array.size(RUNGS) - 1
-        if array.get(RUNGS, i) <= entryFib
+    for i = 0 to NRUNGS - 1
+        if rungAt(i) <= entryFib
             rEIdx := i
 // scale-out: pure fib levels, no indicators. Tested (QQQ 1999-2019 / 498 tickers):
 // banking 50% at 0.618 lifts the win rate 22%->59% / 28%->54% but costs PF
@@ -257,7 +261,7 @@ if useLong and not na(pl) and not na(phPrice) and phBar < plBar and phPrice > pl
     a0 = plPrice
     a1 = phPrice
     rng = a1 - a0
-    sLact = useLadder ? a0 + array.get(RUNGS, math.max(rEIdx - givebackN, 0)) * rng : a0 - stopBuf * rng
+    sLact = useLadder ? a0 + rungAt(rEIdx - givebackN) * rng : a0 - stopBuf * rng
     rrL = (a0 + tgtFib * rng - (a0 + entryFib * rng)) / math.max(a0 + entryFib * rng - sLact, syminfo.mintick)
     angL = (bar_index > plBar and atrA > 0) ? math.abs(close - plPrice) / (atrA * (bar_index - plBar)) : 0.0
     okL = rng / a0 >= minRange and rng / a0 <= maxRange and (not useRR or rrL >= minRR) and (not useRegime or bullRegime) and (not useVol or (not na(plVol) and plVol >= volMult)) and (not useAngle or angL >= minAngle)
@@ -266,7 +270,7 @@ if useLong and not na(pl) and not na(phPrice) and phBar < plBar and phPrice > pl
         lastWhyBar := bar_index
     if okL
         nE := a0 + entryFib * rng
-        nS := useLadder ? a0 + array.get(RUNGS, math.max(rEIdx - givebackN, 0)) * rng : a0 - stopBuf * rng
+        nS := useLadder ? a0 + rungAt(rEIdx - givebackN) * rng : a0 - stopBuf * rng
         nT := a0 + tgtFib * rng
         nA0 := a0
         nA1 := a1
@@ -291,7 +295,7 @@ if useShort and not na(ph) and not na(plPrice) and plBar < phBar and plPrice < p
     a0 = phPrice
     a1 = plPrice
     rng = a1 - a0
-    sSact = useLadder ? a0 + array.get(RUNGS, math.max(rEIdx - givebackN, 0)) * rng : a0 - stopBuf * rng
+    sSact = useLadder ? a0 + rungAt(rEIdx - givebackN) * rng : a0 - stopBuf * rng
     rrS = ((a0 + entryFib * rng) - (a0 + tgtFib * rng)) / math.max(sSact - (a0 + entryFib * rng), syminfo.mintick)
     angS = (bar_index > phBar and atrA > 0) ? math.abs(close - phPrice) / (atrA * (bar_index - phBar)) : 0.0
     okS = math.abs(rng) / a0 >= minRange and math.abs(rng) / a0 <= maxRange and (not useRR or rrS >= minRR) and (not useRegime or bearRegime) and (not useVol or (not na(phVol) and phVol >= volMult)) and (not useAngle or angS >= minAngle)
@@ -300,7 +304,7 @@ if useShort and not na(ph) and not na(plPrice) and plBar < phBar and plPrice < p
         lastWhyBar := bar_index
     if okS
         nE := a0 + entryFib * rng
-        nS := useLadder ? a0 + array.get(RUNGS, math.max(rEIdx - givebackN, 0)) * rng : a0 - stopBuf * rng
+        nS := useLadder ? a0 + rungAt(rEIdx - givebackN) * rng : a0 - stopBuf * rng
         nT := a0 + tgtFib * rng
         nA0 := a0
         nA1 := a1
@@ -360,15 +364,13 @@ if newSetup and showDraw
 if strategy.position_size != 0 and not na(tA0) and (useLadder or trailStop)
     be = strategy.position_avg_price            // breakeven = actual fill price
     if useLadder and not na(tHi)
-        // NB: Pine evaluates BOTH sides of 'and', so the next-rung index must be
-        // clamped or array.get() blows up once the top rung is tagged (RE10045).
         if tLong
-            while tHi + 1 < array.size(RUNGS) and high >= tA0 + array.get(RUNGS, math.min(tHi + 1, array.size(RUNGS) - 1)) * tRng
+            while tHi + 1 < NRUNGS and high >= tA0 + rungAt(tHi + 1) * tRng
                 tHi += 1
         else
-            while tHi + 1 < array.size(RUNGS) and low <= tA0 + array.get(RUNGS, math.min(tHi + 1, array.size(RUNGS) - 1)) * tRng
+            while tHi + 1 < NRUNGS and low <= tA0 + rungAt(tHi + 1) * tRng
                 tHi += 1
-        curStop := tA0 + array.get(RUNGS, math.max(tHi - givebackN, 0)) * tRng
+        curStop := tA0 + rungAt(tHi - givebackN) * tRng
         if tLong
             strategy.exit(usePartial ? "Lx2" : "Lx", "L", stop=curStop)
         else
@@ -432,7 +434,7 @@ if show45 and barstate.islast
 // ---------------- legend ----------------
 var table lg = table.new(position.top_right, 1, 5, border_width=1)
 if barstate.islast
-    table.cell(lg, 0, 0, "Fib Strategy", bgcolor=color.gray, text_color=color.white, text_size=size.small)
+    table.cell(lg, 0, 0, "Fib Strategy · build r9", bgcolor=color.gray, text_color=color.white, text_size=size.small)
     table.cell(lg, 0, 1, "yellow = entry", text_color=color.yellow, text_size=size.tiny)
     table.cell(lg, 0, 2, "green = target",  text_color=color.green,  text_size=size.tiny)
     table.cell(lg, 0, 3, "red = stop",      text_color=color.red,    text_size=size.tiny)
