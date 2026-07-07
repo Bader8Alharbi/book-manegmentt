@@ -34,6 +34,19 @@ a few 1.618 runners pay for many small stops. Two further search rounds
 - Entry order type (Stop = the original chasing behavior), shorts (default
   off — lost on every test instrument), volume / impulse-angle filters.
 
+## 🔭 The scout: [`fib_scout.pine`](fib_scout.pine)
+
+A live **deal ticket** for whatever symbol you open — an indicator, not a
+backtest. The panel answers, instantly, per symbol: is there a setup, what
+STATE is it in (WAIT / ARMED / **BUY ZONE** / BOUNCING / EXTENDED / BROKEN /
+DONE / STALE), the exact entry / stop / target with % distances and R:R,
+**how many shares to buy for your account size and risk %**, and a pass/fail
+checklist (uptrend, anchor volume, freshness). The EXTENDED state applies the
+wave study's finding as a live "don't chase" warning once price stretches past
+the 1.272 extension. Three built-in alerts (new setup armed / price entered
+the buy zone / setup broken) — add one alert per watchlist symbol and
+TradingView pings your phone when any of them pulls back into its zone.
+
 ## Alternative: [`fib_strategy_v4.pine`](fib_strategy_v4.pine)
 
 Same fib engine, rewritten (v4.3): bug fixes, R-multiple stats, and a
