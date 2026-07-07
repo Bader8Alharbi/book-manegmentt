@@ -1,0 +1,146 @@
+//@version=5
+// FIB LADDER — the full retracement grid, drawn the way you would draw it by hand.
+//
+// The grid anchors to the MAJOR swing of the last `lookback` bars (its lowest
+// low and highest high) - the same two points you would pin the manual fib
+// tool to - NOT to small internal pivots. All the classic rungs are drawn:
+//   0.236  0.382  0.5  0.618  0.786  1.0  and extensions 1.272  1.618
+// (0 = start of the impulse, 1.0 = its end, project convention.)
+//
+// LEVEL-TO-LEVEL TRADING: the panel always knows which two rungs price is
+// between. When price touches the rung below and closes back above it
+// (a bounce), the ticket is: BUY the rung, STOP under the next rung down,
+// TARGET the next rung up (T1) and the one after (T2). Share size is
+// computed for your account and risk %.
+//
+// ALERTS: "Fib rung touched" and "Bounce confirmed at a rung" - set one per
+// watchlist symbol and the ladder pings you when a level is being tested.
+indicator("Fib Ladder — auto grid 0.236…1.618", overlay=true, max_lines_count=60, max_labels_count=60)
+
+// ---------------- inputs ----------------
+lookback = input.int(180, "Major swing lookback (bars)", minval=30, tooltip="The grid pins to the lowest low and highest high of this window - the swing your eye sees. 120-250 for daily charts; raise it to catch a bigger structure.")
+show05   = input.bool(true, "Show the 0.5 rung")
+extendR  = input.int(15, "Extend rungs to the right (bars)", minval=0)
+regimeLen= input.int(200, "Trend SMA length", minval=20, group="Checks")
+accountEq= input.float(10000, "Account size ($)", minval=100, step=500, group="Sizing")
+riskPct  = input.float(1.0,  "Risk per trade (% of account)", minval=0.1, maxval=5.0, step=0.1, group="Sizing")
+bigText  = input.bool(true, "Large panel text")
+
+txtSz = bigText ? size.normal : size.small
+smaT  = ta.sma(close, regimeLen)
+
+// ---------------- the major swing (what you would pin by hand) ----------------
+loP = ta.lowest(low, lookback)
+loB = bar_index + ta.lowestbars(low, lookback)
+hiP = ta.highest(high, lookback)
+hiB = bar_index + ta.highestbars(high, lookback)
+gridUp = loB < hiB                    // low came first -> up-impulse -> long ladder
+a0  = gridUp ? loP : hiP              // fib 0 = start of the impulse
+aEnd= gridUp ? hiP : loP              // fib 1.0 = end of the impulse
+rngG = aEnd - a0                      // signed; level(k) = a0 + k*rngG
+lvl(k) => a0 + k * rngG
+
+// ---------------- where is price on the ladder? ----------------
+var float[] RL = array.from(0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0, 1.272, 1.618)
+pos = rngG != 0 ? (close - a0) / rngG : na     // price in fib units (same scale both directions)
+float kB = na       // rung at/below price (in fib units)
+float kA = na       // rung above price
+int   iB = na
+if not na(pos)
+    for i = 0 to array.size(RL) - 1
+        k = array.get(RL, i)
+        if k <= pos
+            kB := k
+            iB := i
+        else if na(kA)
+            kA := k
+
+kBpx = na(kB) ? na : lvl(kB)
+kApx = na(kA) ? na : lvl(kA)
+// bounce test on the rung below (direction-aware: for a short ladder the
+// "pullback" comes from below, so the touch is with the high)
+touchUp = gridUp and not na(kBpx) and low <= kBpx and close > kBpx
+touchDn = not gridUp and not na(kApx) and high >= kApx and close < kApx
+touch   = touchUp or touchDn
+bounceConfirmed = (gridUp and not na(kBpx) and low[1] <= kBpx and close > high[1]) or (not gridUp and not na(kApx) and high[1] >= kApx and close < low[1])
+
+// ---------------- the level-to-level ticket (long ladder) ----------------
+entryPx = gridUp ? kBpx : kApx                                  // buy/sell the rung being tested
+float stopK  = na
+float stopPx = na
+float t1Px = na
+float t2Px = na
+if gridUp and not na(iB) and iB > 0
+    stopK := array.get(RL, iB - 1)
+    stopPx := lvl(stopK)
+    t1Px := kApx
+    if not na(kA) and iB + 2 < array.size(RL)
+        t2Px := lvl(array.get(RL, iB + 2))
+dist   = not na(entryPx) and not na(stopPx) ? entryPx - stopPx : na
+rr1    = not na(dist) and dist > 0 and not na(t1Px) ? (t1Px - entryPx) / dist : na
+shares = not na(dist) and dist > 0 ? math.floor(math.min(accountEq * riskPct / 100 / dist, accountEq / entryPx)) : na
+uptrend = na(smaT) or close > smaT
+
+state = na(pos) ? "WAIT" :
+     pos < 0 ? "GRID BROKEN" :
+     pos > 1.618 ? "ABOVE 1.618" :
+     not gridUp ? "DOWN IMPULSE" :
+     touch ? "TESTING " + str.tostring(kB, "#.###") :
+     "BETWEEN " + str.tostring(kB, "#.###") + " – " + str.tostring(na(kA) ? 1.618 : kA, "#.###")
+stCol = na(pos) or pos < 0 ? color.new(color.red, 20) :
+     touch ? color.new(color.green, 0) :
+     not gridUp ? color.new(color.orange, 20) : color.new(color.teal, 20)
+advice = na(pos) ? "No swing in the window" :
+     pos < 0 ? "Price broke the impulse start - grid is invalid" :
+     pos > 1.618 ? "Beyond the last extension - wait for a new swing" :
+     not gridUp ? "Falling structure: rungs act as resistance overhead" :
+     touch ? "Rung is being tested NOW - bounce = buy it" :
+     bounceConfirmed ? "Bounce confirmed on the rung below" :
+     "Let price come to a rung - do not buy mid-air"
+
+// ---------------- draw the ladder ----------------
+var line[]  lns = array.new_line()
+var label[] lbs = array.new_label()
+if barstate.islast
+    while array.size(lns) > 0
+        line.delete(array.pop(lns))
+    while array.size(lbs) > 0
+        label.delete(array.pop(lbs))
+    startX = math.min(loB, hiB)
+    endX   = bar_index + extendR
+    for i = 0 to array.size(RL) - 1
+        k = array.get(RL, i)
+        if k == 0.5 and not show05
+            continue
+        px = lvl(k)
+        isAnchor = k == 0.0 or k == 1.0
+        colK = isAnchor ? color.new(color.white, 10) : k > 1.0 ? color.new(color.green, 25) : color.new(color.yellow, 35)
+        array.push(lns, line.new(startX, px, endX, px, color=colK,
+             width=isAnchor ? 2 : 1, style=k > 1.0 ? line.style_dashed : line.style_solid))
+        array.push(lbs, label.new(endX, px, str.tostring(k, "#.###") + "   " + str.tostring(px, format.mintick),
+             style=label.style_label_left, color=color.new(color.black, 60), textcolor=colK, size=size.small))
+plot(smaT, "Trend SMA", color=color.new(color.orange, 60))
+
+// ---------------- panel ----------------
+var table tk = table.new(position.top_right, 2, 8, border_width=1, frame_width=2, frame_color=color.new(color.gray, 40))
+if barstate.islast
+    table.cell(tk, 0, 0, "FIB LADDER", bgcolor=color.new(color.black, 20), text_color=color.white, text_size=txtSz)
+    table.cell(tk, 1, 0, state, bgcolor=stCol, text_color=color.white, text_size=txtSz)
+    table.cell(tk, 0, 1, "Advice", text_color=color.gray, text_size=size.tiny)
+    table.cell(tk, 1, 1, advice, text_color=color.white, text_size=size.small)
+    table.cell(tk, 0, 2, "Swing", text_color=color.gray, text_size=size.small)
+    table.cell(tk, 1, 2, (gridUp ? "UP  " : "DOWN  ") + str.tostring(a0, format.mintick) + " → " + str.tostring(aEnd, format.mintick), text_color=color.white, text_size=size.small)
+    table.cell(tk, 0, 3, "Buy rung", text_color=color.yellow, text_size=txtSz)
+    table.cell(tk, 1, 3, gridUp and not na(entryPx) ? str.tostring(kB, "#.###") + " = " + str.tostring(entryPx, format.mintick) : "-", text_color=color.yellow, text_size=txtSz)
+    table.cell(tk, 0, 4, "Stop", text_color=color.red, text_size=txtSz)
+    table.cell(tk, 1, 4, gridUp and not na(stopPx) ? "under " + str.tostring(stopK, "#.###") + " = " + str.tostring(stopPx, format.mintick) : "-", text_color=color.red, text_size=txtSz)
+    table.cell(tk, 0, 5, "Targets", text_color=color.green, text_size=txtSz)
+    table.cell(tk, 1, 5, gridUp and not na(t1Px) ? "T1 " + str.tostring(t1Px, format.mintick) + (na(t2Px) ? "" : "   T2 " + str.tostring(t2Px, format.mintick)) : "-", text_color=color.green, text_size=txtSz)
+    table.cell(tk, 0, 6, "R:R / Size", text_color=color.white, text_size=size.small)
+    table.cell(tk, 1, 6, not na(rr1) and not na(shares) ? str.tostring(rr1, "#.##") + " : 1   |   " + str.tostring(shares, "#") + " sh (risk $" + str.tostring(accountEq*riskPct/100, "#") + ")" : "-", text_color=color.white, text_size=size.small)
+    table.cell(tk, 0, 7, "Trend", text_color=color.gray, text_size=size.small)
+    table.cell(tk, 1, 7, uptrend ? "✓ above " + str.tostring(regimeLen) + "SMA" : "✗ below " + str.tostring(regimeLen) + "SMA - careful with longs", text_color=uptrend ? color.lime : color.red, text_size=size.small)
+
+// ---------------- alerts ----------------
+alertcondition(touch and not touch[1], "Fib rung touched", "Fib Ladder: price is testing a fib rung")
+alertcondition(bounceConfirmed and not bounceConfirmed[1], "Bounce confirmed at a rung", "Fib Ladder: bounce confirmed at a fib rung")

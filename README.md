@@ -34,18 +34,16 @@ a few 1.618 runners pay for many small stops. Two further search rounds
 - Entry order type (Stop = the original chasing behavior), shorts (default
   off — lost on every test instrument), volume / impulse-angle filters.
 
-## 🔭 The scout: [`fib_scout.pine`](fib_scout.pine)
+## 🪜 The ladder: [`fib_ladder.pine`](fib_ladder.pine)
 
-A live **deal ticket** for whatever symbol you open — an indicator, not a
-backtest. The panel answers, instantly, per symbol: is there a setup, what
-STATE is it in (WAIT / ARMED / **BUY ZONE** / BOUNCING / EXTENDED / BROKEN /
-DONE / STALE), the exact entry / stop / target with % distances and R:R,
-**how many shares to buy for your account size and risk %**, and a pass/fail
-checklist (uptrend, anchor volume, freshness). The EXTENDED state applies the
-wave study's finding as a live "don't chase" warning once price stretches past
-the 1.272 extension. Three built-in alerts (new setup armed / price entered
-the buy zone / setup broken) — add one alert per watchlist symbol and
-TradingView pings your phone when any of them pulls back into its zone.
+The full retracement grid — **0.236 / 0.382 / 0.5 / 0.618 / 0.786 / 1.0 /
+1.272 / 1.618** — pinned automatically to the *major* swing of the lookback
+window (the same two points you would pin the manual fib tool to, not small
+internal pivots). The panel always knows which two rungs price is between and
+plans the level-to-level trade: **buy the rung being tested, stop under the
+next rung down, targets = the next rungs up**, with R:R and share sizing for
+your account. Alerts: "Fib rung touched" and "Bounce confirmed at a rung" —
+one alert per watchlist symbol turns TradingView into your level scanner.
 
 ## Alternative: [`fib_strategy_v4.pine`](fib_strategy_v4.pine)
 
