@@ -434,7 +434,7 @@ if show45 and barstate.islast
 // ---------------- legend ----------------
 var table lg = table.new(position.top_right, 1, 5, border_width=1)
 if barstate.islast
-    table.cell(lg, 0, 0, "Fib Strategy · build r9", bgcolor=color.gray, text_color=color.white, text_size=size.small)
+    table.cell(lg, 0, 0, "Fib Strategy · build r10", bgcolor=color.gray, text_color=color.white, text_size=size.small)
     table.cell(lg, 0, 1, "yellow = entry", text_color=color.yellow, text_size=size.tiny)
     table.cell(lg, 0, 2, "green = target",  text_color=color.green,  text_size=size.tiny)
     table.cell(lg, 0, 3, "red = stop",      text_color=color.red,    text_size=size.tiny)
