@@ -360,11 +360,13 @@ if newSetup and showDraw
 if strategy.position_size != 0 and not na(tA0) and (useLadder or trailStop)
     be = strategy.position_avg_price            // breakeven = actual fill price
     if useLadder and not na(tHi)
+        // NB: Pine evaluates BOTH sides of 'and', so the next-rung index must be
+        // clamped or array.get() blows up once the top rung is tagged (RE10045).
         if tLong
-            while tHi + 1 < array.size(RUNGS) and high >= tA0 + array.get(RUNGS, tHi + 1) * tRng
+            while tHi + 1 < array.size(RUNGS) and high >= tA0 + array.get(RUNGS, math.min(tHi + 1, array.size(RUNGS) - 1)) * tRng
                 tHi += 1
         else
-            while tHi + 1 < array.size(RUNGS) and low <= tA0 + array.get(RUNGS, tHi + 1) * tRng
+            while tHi + 1 < array.size(RUNGS) and low <= tA0 + array.get(RUNGS, math.min(tHi + 1, array.size(RUNGS) - 1)) * tRng
                 tHi += 1
         curStop := tA0 + array.get(RUNGS, math.max(tHi - givebackN, 0)) * tRng
         if tLong
